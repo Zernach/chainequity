@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { theme } from '../constants/theme';
 
 export default function HelloWorld() {
     return (
@@ -13,7 +14,7 @@ export default function HelloWorld() {
 const styles = StyleSheet.create({
     container: {
         padding: 20,
-        backgroundColor: '#f0f0f0',
+        backgroundColor: theme.colors.background.secondary,
         borderRadius: 10,
         marginVertical: 10,
         alignItems: 'center',
@@ -21,12 +22,12 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#333',
+        color: theme.colors.text.primary,
         marginBottom: 8,
     },
     subtitle: {
         fontSize: 16,
-        color: '#666',
+        color: theme.colors.text.secondary,
     },
 });
 

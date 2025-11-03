@@ -1,0 +1,45 @@
+# Rust / Cargo
+**/target/
+**/*.rs.bk
+*.pdb
+
+# Keep Cargo.lock for programs, ignore for libraries
+# Uncomment the following if this is a library
+# Cargo.lock
+
+# Solana / Anchor
+.anchor/
+test-ledger/
+*.so
+deploy/
+
+# Keypairs and secrets (IMPORTANT: never commit these!)
+**/keypairs/
+**/keys/
+**/*-keypair.json
+!**/tests/**/*-keypair.json
+
+# Dependencies
+node_modules/
+yarn-error.log
+npm-debug.log
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Build artifacts
+dist/
+build/
+
+# TypeScript
+*.tsbuildinfo
+

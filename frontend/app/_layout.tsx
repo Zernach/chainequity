@@ -1,19 +1,20 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { theme } from '../constants/theme';
 
 export default function RootLayout() {
     return (
         <>
-            <StatusBar style="auto" />
+            <StatusBar style="light" />
             <Stack>
                 <Stack.Screen
                     name="index"
                     options={{
                         title: 'ChainEquity Home',
                         headerStyle: {
-                            backgroundColor: '#6366f1',
+                            backgroundColor: theme.colors.background.secondary,
                         },
-                        headerTintColor: '#fff',
+                        headerTintColor: theme.colors.text.primary,
                         headerTitleStyle: {
                             fontWeight: 'bold',
                         },

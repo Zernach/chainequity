@@ -10,6 +10,7 @@ import {
     Alert,
 } from 'react-native';
 import HelloWorld from '../components/HelloWorld';
+import { theme } from '../constants/theme';
 
 // Configuration - update these for your environment
 const API_URL = 'http://localhost:3000';
@@ -190,6 +191,7 @@ export default function HomeScreen() {
                 <TextInput
                     style={styles.input}
                     placeholder="Enter user name"
+                    placeholderTextColor={theme.colors.text.placeholder}
                     value={newUserName}
                     onChangeText={setNewUserName}
                 />
@@ -245,22 +247,22 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: theme.colors.background.primary,
         padding: 16,
     },
     section: {
         marginVertical: 12,
         padding: 16,
-        backgroundColor: '#f9fafb',
+        backgroundColor: theme.colors.background.secondary,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#e5e7eb',
+        borderColor: theme.colors.border.default,
     },
     sectionTitle: {
         fontSize: 18,
         fontWeight: 'bold',
         marginBottom: 12,
-        color: '#111827',
+        color: theme.colors.text.primary,
     },
     statusBadge: {
         padding: 12,
@@ -268,105 +270,108 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     connected: {
-        backgroundColor: '#d1fae5',
+        backgroundColor: theme.colors.success.bg,
     },
     disconnected: {
-        backgroundColor: '#fee2e2',
+        backgroundColor: theme.colors.error.bg,
     },
     statusText: {
         fontSize: 16,
         fontWeight: '600',
         textAlign: 'center',
+        color: theme.colors.text.primary,
     },
     input: {
         borderWidth: 1,
-        borderColor: '#d1d5db',
+        borderColor: theme.colors.border.default,
         borderRadius: 6,
         padding: 12,
         marginBottom: 12,
         fontSize: 16,
-        backgroundColor: '#fff',
+        backgroundColor: theme.colors.background.tertiary,
+        color: theme.colors.text.primary,
     },
     button: {
-        backgroundColor: '#6366f1',
+        backgroundColor: theme.colors.primary.default,
         padding: 14,
         borderRadius: 6,
         alignItems: 'center',
         marginBottom: 8,
     },
     buttonSecondary: {
-        backgroundColor: '#8b5cf6',
+        backgroundColor: theme.colors.secondary.default,
         padding: 14,
         borderRadius: 6,
         alignItems: 'center',
         marginBottom: 8,
     },
     buttonPrimary: {
-        backgroundColor: '#10b981',
+        backgroundColor: theme.colors.success.default,
         padding: 14,
         borderRadius: 6,
         alignItems: 'center',
         marginBottom: 8,
     },
     buttonText: {
-        color: '#fff',
+        color: theme.colors.text.primary,
         fontSize: 16,
         fontWeight: '600',
     },
     userCard: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.colors.background.tertiary,
         padding: 12,
         borderRadius: 6,
         marginBottom: 8,
         borderWidth: 1,
-        borderColor: '#e5e7eb',
+        borderColor: theme.colors.border.default,
     },
     userName: {
         fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 4,
-        color: '#111827',
+        color: theme.colors.text.primary,
     },
     userDetail: {
         fontSize: 12,
-        color: '#6b7280',
+        color: theme.colors.text.secondary,
         marginTop: 2,
     },
     messageBox: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.colors.background.tertiary,
         padding: 10,
         borderRadius: 6,
         marginBottom: 8,
         borderWidth: 1,
-        borderColor: '#e5e7eb',
+        borderColor: theme.colors.border.default,
     },
     messageType: {
         fontSize: 12,
         fontWeight: 'bold',
-        color: '#6366f1',
+        color: theme.colors.primary.light,
         marginBottom: 4,
     },
     messageContent: {
         fontSize: 11,
-        color: '#374151',
+        color: theme.colors.text.secondary,
         fontFamily: 'monospace',
     },
     resultBox: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.colors.background.tertiary,
         padding: 12,
         borderRadius: 6,
         marginTop: 12,
         borderWidth: 1,
-        borderColor: '#e5e7eb',
+        borderColor: theme.colors.border.default,
     },
     resultTitle: {
         fontSize: 14,
         fontWeight: 'bold',
         marginBottom: 8,
+        color: theme.colors.text.primary,
     },
     resultText: {
         fontSize: 11,
-        color: '#374151',
+        color: theme.colors.text.secondary,
         fontFamily: 'monospace',
     },
     loadingOverlay: {
