@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("7zmjGpWX7frSmnFfyZuhhrfoLgV3yH44RJZbKob1FSJF");
 
 #[program]
 pub mod gated_token {
