@@ -1,0 +1,9 @@
+{
+  "project_id": "wsnrrcuccyyleytrlmwz",
+  "project_url": "https://wsnrrcuccyyleytrlmwz.supabase.co",
+  "database": "postgres",
+  "schema": "public",
+  "migrations_path": "./",
+  "notes": "Run migrations in Supabase SQL Editor or using Supabase CLI"
+}
+
