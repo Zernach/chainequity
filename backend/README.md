@@ -1,11 +1,12 @@
 # ChainEquity Backend
 
-Node.js backend with Express, Solana integration, and WebSocket support.
+Node.js backend with Express, Solana integration, and WebSocket support. Written in TypeScript.
 
 ## Setup
 
+Install dependencies:
 ```bash
-npm install
+yarn install
 ```
 
 Copy `.env.example` to `.env` and fill in your credentials:
@@ -16,11 +17,17 @@ cp .env.example .env
 ## Development
 
 ```bash
-# Start with nodemon (auto-reload)
-npm run dev
+# Start development server with hot-reload
+yarn dev
 
-# Or start normally
-npm start
+# Build TypeScript to JavaScript
+yarn build
+
+# Type check without building
+yarn type-check
+
+# Run production build
+yarn start
 ```
 
 ## API Endpoints
@@ -49,8 +56,37 @@ npm start
 
 ## Technologies
 
+- TypeScript - Type-safe JavaScript
 - Express.js - REST API
 - WebSocket (ws) - Real-time updates
 - @solana/web3.js - Solana blockchain integration
 - @supabase/supabase-js - PostgreSQL database
+- @coral-xyz/anchor - Solana program framework
+
+## Project Structure
+
+```
+backend/
+├── src/
+│   ├── server.ts          # Main Express server
+│   ├── db.ts              # Supabase client
+│   ├── solana.ts          # Solana operations
+│   ├── websocket.ts       # WebSocket server
+│   ├── cap-table.ts       # Cap table generation
+│   ├── indexer.ts         # Event indexer
+│   ├── types/             # TypeScript type definitions
+│   │   ├── database.types.ts
+│   │   ├── solana.types.ts
+│   │   ├── websocket.types.ts
+│   │   ├── cap-table.types.ts
+│   │   └── indexer.types.ts
+│   └── utils/             # Utility functions
+│       ├── logger.ts
+│       ├── validators.ts
+│       └── errors.ts
+├── dist/                  # Compiled JavaScript (gitignored)
+├── package.json
+├── tsconfig.json
+└── nodemon.json
+```
 
