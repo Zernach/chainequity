@@ -1,9 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Alert } from 'react-native';
 
-const WS_URL = process.env.EXPO_PUBLIC_WS_URL || 'ws://localhost:3001';
 const MAX_MESSAGES = 10;
 const RECONNECT_DELAY = 3000;
+
+/**
+ * Constructs WebSocket URL from API URL
+ * Replaces http/https with ws/wss and appends /ws path
+ */
+function getWebSocketUrl(apiUrl: string): string {
+    return apiUrl.replace(/^http/, 'ws') + '/ws';
+}
 
 interface WebSocketMessage {
     type: string;
@@ -16,8 +23,12 @@ export function useWebSocketConnection() {
     const ws = useRef<WebSocket | null>(null);
 
     const connect = useCallback(() => {
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+        const wsUrl = getWebSocketUrl(apiUrl);
+
         try {
-            ws.current = new WebSocket(WS_URL);
+            console.log('[WebSocket] Connecting to', wsUrl);
+            ws.current = new WebSocket(wsUrl);
 
             ws.current.onopen = () => {
                 console.log('WebSocket connected');

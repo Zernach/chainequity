@@ -334,7 +334,6 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 PORT=3000
-WS_PORT=3001
 ```
 
 ### Frontend (process.env / Expo)

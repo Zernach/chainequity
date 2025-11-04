@@ -388,7 +388,9 @@ Get wallet SOL balance.
 
 ## WebSocket Events
 
-Connect to WebSocket: `ws://localhost:3001`
+Connect to WebSocket: `ws://localhost:3000/ws`
+
+The WebSocket endpoint is on the same server as the REST API. The HTTP connection automatically upgrades to WebSocket when connecting to the `/ws` path.
 
 ### Event Types
 

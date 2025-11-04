@@ -18,7 +18,6 @@ cp .env.example .env
 ```bash
 # Backend API Configuration
 EXPO_PUBLIC_API_URL=http://localhost:3000
-EXPO_PUBLIC_WS_URL=ws://localhost:3001
 
 # Supabase Configuration
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
@@ -56,7 +55,7 @@ Environment variables are loaded from `.env`:
 
 ### Backend Connection
 - `EXPO_PUBLIC_API_URL`: Backend REST API URL (default: http://localhost:3000)
-- `EXPO_PUBLIC_WS_URL`: WebSocket server URL (default: ws://localhost:3001)
+  - WebSocket connections are automatically established at the `/ws` endpoint
 
 ### Supabase
 - `EXPO_PUBLIC_SUPABASE_URL`: Your Supabase project URL

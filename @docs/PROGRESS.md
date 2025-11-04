@@ -4,10 +4,42 @@
 
 This document tracks the progress of implementing the ChainEquity tokenized security platform.
 
-**Current Status:** Phase 1, 2 & 3 Complete ✅ | **Backend Migrated to TypeScript** ✅ | **Home Screen Refactored** ✅ | **WalletConnect Integration** ✅  
+**Current Status:** Phase 1, 2 & 3 Complete ✅ | **Backend Migrated to TypeScript** ✅ | **Home Screen Refactored** ✅ | **WalletConnect Integration** ✅ | **WebSocket Unified** ✅  
 **Next Phase:** Corporate Actions System
 
-## 🎉 Latest Update: Services Refactored into Modular Handlers (Nov 4, 2025)
+## 🎉 Latest Update: WebSocket Unified to Single Port (Nov 4, 2025)
+
+Successfully consolidated HTTP and WebSocket into a single server port using HTTP upgrade!
+
+### Refactoring Benefits
+
+**🔌 Unified Server Architecture:**
+- Single port (3000) for both HTTP REST API and WebSocket
+- HTTP automatically upgrades to WebSocket on `/ws` endpoint
+- Simplified deployment and configuration
+- No need for separate WebSocket URL environment variable
+- Better alignment with production deployment patterns
+
+**🔧 Technical Implementation:**
+- Backend: HTTP server with `upgrade` event handler on `/ws` path
+- Frontend: WebSocket URL automatically derived from `EXPO_PUBLIC_API_URL`
+- Connection string: `{API_URL}/ws` (e.g., `ws://localhost:3000/ws`)
+
+**📝 Configuration Simplified:**
+- **Before:** Required `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_WS_URL`
+- **After:** Only requires `EXPO_PUBLIC_API_URL`
+- WebSocket automatically connects to `{API_URL}/ws`
+
+**🗂️ Files Updated:**
+- `backend/src/server.ts` - Unified HTTP server creation
+- `backend/src/websocket.ts` - HTTP upgrade handler
+- `frontend/hooks/useWebSocket.ts` - Dynamic WS URL construction
+- `frontend/hooks/useWebSocketConnection.ts` - Dynamic WS URL construction
+- All documentation updated to reflect single-port architecture
+
+---
+
+## 🎉 Previous Update: Services Refactored into Modular Handlers (Nov 4, 2025)
 
 Successfully refactored the monolithic service files into clean, modular, containerized handlers!
 
@@ -654,7 +686,6 @@ Phase 3 establishes the complete backend infrastructure for tracking and reporti
   - [ ] ADMIN_KEYPAIR_PATH
   - [ ] PROGRAM_ID (from deployment)
   - [ ] PORT=3000
-  - [ ] WS_PORT=3001
 
 - ⏳ Update Anchor configuration
   - [ ] Set program ID after deployment

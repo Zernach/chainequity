@@ -22,17 +22,16 @@
 │                                                                       │
 └───────────────────────┬───────────────────────────────────────────────┘
                         │
-                        │ HTTP REST API (Port 3000)
-                        │ WebSocket (Port 3001)
+                        │ HTTP/WebSocket (Port 3000)
                         │
 ┌───────────────────────▼───────────────────────────────────────────────┐
 │                        BACKEND LAYER                                  │
 │                                                                        │
 │  ┌─────────────────────────────────────────────────────────────┐    │
-│  │            Node.js Server (Express + ws)                     │    │
+│  │       Node.js Unified Server (Express + ws) - Port 3000     │    │
 │  │                                                               │    │
 │  │  ┌─────────────────────────────────────────────────────┐   │    │
-│  │  │  REST API Server (server.js) - Port 3000            │   │    │
+│  │  │  REST API Routes (server.js)                        │   │    │
 │  │  │  ├─ GET  /health                                     │   │    │
 │  │  │  ├─ GET  /users                                      │   │    │
 │  │  │  ├─ POST /users                                      │   │    │
@@ -42,7 +41,8 @@
 │  │  └─────────────────────────────────────────────────────┘   │    │
 │  │                                                               │    │
 │  │  ┌─────────────────────────────────────────────────────┐   │    │
-│  │  │  WebSocket Server (websocket.js) - Port 3001        │   │    │
+│  │  │  WebSocket Endpoint (websocket.js) - /ws            │   │    │
+│  │  │  ├─ HTTP → WebSocket upgrade on /ws path            │   │    │
 │  │  │  ├─ Echo messages                                    │   │    │
 │  │  │  ├─ Broadcast Solana transactions                    │   │    │
 │  │  │  └─ Broadcast DB changes (Supabase Realtime)        │   │    │
@@ -195,10 +195,12 @@ Frontend A               Backend                 Frontend B
 - **CORS**: Enabled for all origins (dev only)
 
 ### WebSocket
-- **Port**: 3001
+- **Endpoint**: `/ws` (HTTP upgrade)
+- **Port**: Same as HTTP (3000)
 - **Protocol**: ws:// (dev), wss:// (prod)
 - **Format**: JSON messages
 - **Auto-reconnect**: Yes (3 second delay)
+- **Connection**: Derived from `EXPO_PUBLIC_API_URL` (http→ws) + `/ws`
 
 ### Database Connection
 - **Protocol**: HTTPS (REST API)
@@ -310,13 +312,13 @@ chainequity/
 
 ## Port Configuration
 
-| Service        | Port | Protocol | Description                |
-|---------------|------|----------|----------------------------|
-| REST API      | 3000 | HTTP     | Express server             |
-| WebSocket     | 3001 | WS       | Real-time communication    |
-| Expo Metro    | 8081 | HTTP     | React Native bundler       |
-| Supabase API  | 443  | HTTPS    | Database REST API          |
-| Solana RPC    | 443  | HTTPS    | Blockchain RPC             |
+| Service        | Port | Protocol | Description                           |
+|---------------|------|----------|---------------------------------------|
+| HTTP Server   | 3000 | HTTP     | Express server (REST + WebSocket)     |
+| WebSocket     | 3000 | WS       | `/ws` endpoint (HTTP upgrade)         |
+| Expo Metro    | 8081 | HTTP     | React Native bundler                  |
+| Supabase API  | 443  | HTTPS    | Database REST API                     |
+| Solana RPC    | 443  | HTTPS    | Blockchain RPC                        |
 
 ## Environment Variables
 
@@ -325,14 +327,13 @@ chainequity/
 SUPABASE_URL     # Supabase project URL
 SUPABASE_KEY     # Supabase anon key
 SOLANA_NETWORK   # devnet/testnet/mainnet-beta
-PORT             # REST API port (default: 3000)
-WS_PORT          # WebSocket port (default: 3001)
+PORT             # HTTP server port (default: 3000)
 ```
 
-### Frontend (hardcoded in app/index.tsx)
+### Frontend (.env)
 ```
-API_URL          # Backend REST API URL
-WS_URL           # Backend WebSocket URL
+EXPO_PUBLIC_API_URL  # Backend API URL (e.g., http://localhost:3000)
+                     # WebSocket automatically connects to {API_URL}/ws
 ```
 
 ## Best Practices Implemented

@@ -5,10 +5,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { WebSocketEvent } from '../services/types';
 
-export const WS_BASE_URL = process.env.EXPO_PUBLIC_WS_URL || 'ws://localhost:3001';
+/**
+ * Constructs WebSocket URL from API URL
+ * Replaces http/https with ws/wss and appends /ws path
+ */
+function getWebSocketUrl(apiUrl: string): string {
+    return apiUrl.replace(/^http/, 'ws') + '/ws';
+}
 
 interface UseWebSocketOptions {
-    url?: string;
     onMessage?: (event: WebSocketEvent) => void;
     onConnect?: () => void;
     onDisconnect?: () => void;
@@ -17,17 +22,18 @@ interface UseWebSocketOptions {
 }
 
 export function useWebSocket({
-    url = WS_BASE_URL,
     onMessage,
     onConnect,
     onDisconnect,
     reconnectInterval = 3000,
     autoConnect = true,
 }: UseWebSocketOptions = {}) {
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+    const wsUrl = getWebSocketUrl(apiUrl);
     const [connected, setConnected] = useState(false);
     const [messages, setMessages] = useState<WebSocketEvent[]>([]);
     const ws = useRef<WebSocket | null>(null);
-    const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
+    const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const shouldReconnect = useRef(autoConnect);
 
     const connect = useCallback(() => {
@@ -36,10 +42,10 @@ export function useWebSocket({
             return;
         }
 
-        console.log('[WebSocket] Connecting to', url);
+        console.log('[WebSocket] Connecting to', wsUrl);
 
         try {
-            ws.current = new WebSocket(url);
+            ws.current = new WebSocket(wsUrl);
 
             ws.current.onopen = () => {
                 console.log('[WebSocket] Connected');
@@ -79,7 +85,7 @@ export function useWebSocket({
             console.error('[WebSocket] Connection failed:', error);
             setConnected(false);
         }
-    }, [url, onMessage, onConnect, onDisconnect, reconnectInterval]);
+    }, [wsUrl, onMessage, onConnect, onDisconnect, reconnectInterval]);
 
     const disconnect = useCallback(() => {
         shouldReconnect.current = false;

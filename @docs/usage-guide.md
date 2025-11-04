@@ -24,8 +24,8 @@ yarn dev
 ```
 
 The server will start on:
-- REST API: http://localhost:3000
-- WebSocket: ws://localhost:3001
+- HTTP Server: http://localhost:3000
+- WebSocket: ws://localhost:3000/ws (auto-upgraded from HTTP)
 
 ### Starting the Frontend
 
@@ -35,10 +35,10 @@ cd frontend
 cp .env.example .env
 ```
 
-2. Edit `.env` to match your backend URLs:
+2. Edit `.env` to set your backend URL:
 ```
 EXPO_PUBLIC_API_URL=http://localhost:3000
-EXPO_PUBLIC_WS_URL=ws://localhost:3001
+# WebSocket automatically connects to http://localhost:3000/ws
 ```
 
 3. Start the app:
@@ -255,7 +255,7 @@ curl "http://localhost:3000/transfers/YOUR_MINT_ADDRESS?limit=10&offset=20"
 ### JavaScript/TypeScript Example
 
 ```javascript
-const ws = new WebSocket('ws://localhost:3001');
+const ws = new WebSocket('ws://localhost:3000/ws');
 
 ws.onopen = () => {
   console.log('Connected to ChainEquity WebSocket');
@@ -324,7 +324,7 @@ function useCapTableUpdates(mintAddress) {
   
   // Subscribe to WebSocket updates
   useEffect(() => {
-    const socket = new WebSocket('ws://localhost:3001');
+    const socket = new WebSocket('ws://localhost:3000/ws');
     
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
