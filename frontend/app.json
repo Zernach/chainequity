@@ -4,12 +4,12 @@
     "slug": "chainequity",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/chainequity-icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "scheme": "chainequity",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/chainequity-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -19,7 +19,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/chainequity-icon.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.chainequity.app",
@@ -27,7 +27,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png",
+      "favicon": "./assets/chainequity-icon.png",
       "bundler": "metro"
     },
     "plugins": [
