@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { supabase } from './db';
@@ -36,7 +37,9 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const WS_PORT = parseInt(process.env.WS_PORT || '3001', 10);
+
+// Create HTTP server
+const server = createServer(app);
 
 // Middleware
 app.use(cors());
@@ -886,11 +889,12 @@ app.get('/allowlist/:mintAddress/:walletAddress', authenticateRequest, async (re
     }
 });
 
-// Start servers
-app.listen(PORT, () => {
-    console.log(`Express server running on http://localhost:${PORT}`);
-});
+// Initialize WebSocket server on the same HTTP server
+initWebSocketServer(server);
 
-// Initialize WebSocket server
-initWebSocketServer(WS_PORT);
+// Start the unified server
+server.listen(PORT, () => {
+    console.log(`HTTP server running on http://localhost:${PORT}`);
+    console.log(`WebSocket available at ws://localhost:${PORT}/ws`);
+});
 

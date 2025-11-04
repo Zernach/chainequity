@@ -1,4 +1,5 @@
 import WebSocket, { Server as WebSocketServer } from 'ws';
+import { Server as HttpServer } from 'http';
 import { supabase } from './db';
 import { WebSocketMessage, DatabaseChangeMessage } from './types/websocket.types';
 
@@ -6,12 +7,27 @@ let wss: WebSocketServer | null = null;
 const clients = new Set<WebSocket>();
 
 /**
- * Initialize WebSocket server
+ * Initialize WebSocket server attached to existing HTTP server
  */
-export function initWebSocketServer(port: number): WebSocketServer {
-    wss = new WebSocketServer({ port });
+export function initWebSocketServer(server: HttpServer): WebSocketServer {
+    wss = new WebSocketServer({
+        noServer: true // We'll handle upgrade manually
+    });
 
-    console.log(`WebSocket server running on port ${port}`);
+    // Handle upgrade from HTTP to WebSocket
+    server.on('upgrade', (request, socket, head) => {
+        const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
+
+        if (pathname === '/ws') {
+            wss!.handleUpgrade(request, socket, head, (ws) => {
+                wss!.emit('connection', ws, request);
+            });
+        } else {
+            socket.destroy();
+        }
+    });
+
+    console.log(`WebSocket server initialized on /ws endpoint`);
 
     wss.on('connection', (ws: WebSocket) => {
         console.log('New WebSocket client connected');

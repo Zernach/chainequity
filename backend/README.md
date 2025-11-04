@@ -32,7 +32,11 @@ yarn start
 
 ## API Endpoints
 
-### REST API (Port 3000)
+### HTTP Server (Port 3000)
+
+The backend runs a single HTTP server that handles both REST API requests and WebSocket connections.
+
+#### REST API Endpoints
 
 - `GET /health` - Health check
 - `GET /users` - Get all users
@@ -47,12 +51,14 @@ yarn start
 - `POST /create-wallet` - Create new Solana wallet
 - `GET /balance/:publicKey` - Get wallet balance
 
-### WebSocket (Port 3001)
+#### WebSocket Endpoint (`/ws`)
 
-- Connects automatically
+The HTTP server automatically upgrades WebSocket connections on the `/ws` path:
+- Connect to: `ws://localhost:3000/ws`
 - Echoes messages back
 - Broadcasts Solana transaction updates
 - Broadcasts database changes in real-time
+- Auto-reconnect support on the client
 
 ## Technologies
 
