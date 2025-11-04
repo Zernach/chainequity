@@ -15,15 +15,16 @@ type BadgeVariant =
     | 'default';
 
 interface BadgeProps {
-    label: string;
+    label?: string;
     variant?: BadgeVariant;
     style?: ViewStyle;
+    children?: React.ReactNode;
 }
 
-export default function Badge({ label, variant = 'default', style }: BadgeProps) {
+export default function Badge({ label, variant = 'default', style, children }: BadgeProps) {
     return (
         <View style={[styles.badge, styles[`badge_${variant}`], style]}>
-            <Text style={[styles.text, styles[`text_${variant}`]]}>{label}</Text>
+            <Text style={[styles.text, styles[`text_${variant}`]]}>{children || label}</Text>
         </View>
     );
 }

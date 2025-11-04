@@ -4,10 +4,221 @@
 
 This document tracks the progress of implementing the ChainEquity tokenized security platform.
 
-**Current Status:** Phase 1, 2 & 3 Complete ✅ | **Backend Migrated to TypeScript** ✅  
+**Current Status:** Phase 1, 2 & 3 Complete ✅ | **Backend Migrated to TypeScript** ✅ | **Home Screen Refactored** ✅ | **WalletConnect Integration** ✅  
 **Next Phase:** Corporate Actions System
 
-## 🎉 Recent Update: TypeScript Migration (Complete)
+## 🎉 Latest Update: Wallet Login Session Token Generation Fixed (Nov 4, 2025)
+
+Fixed critical wallet authentication bug where session tokens were not being generated after successful wallet verification!
+
+### Bug Fix Applied
+
+**🐛 Fixed Wallet Login Session Token Flow:**
+- **Root Cause:** Backend was creating users but NOT generating session tokens for wallet login
+- **Frontend Issue:** No `access_token` received, causing WebSocket connection failures
+- **Error:** WebSocket repeatedly disconnecting (readyState: 3) and authentication failures
+- **Solution:** Backend now generates session tokens using password-based sign-in after wallet verification
+
+**🔐 Enhanced Authentication Flow:**
+1. Request nonce from backend (`POST /auth/request-nonce`)
+2. Generate message with nonce using `generateSignatureMessage(nonce)`
+3. Sign the message with wallet
+4. Send wallet_address, signature, and message (containing nonce) to backend
+5. Backend validates nonce (single-use, time-limited) and wallet signature
+6. **NEW:** Backend generates password for user and stores temporarily
+7. **NEW:** Backend signs in user with Supabase to get session tokens
+8. **NEW:** Backend returns `session` object with `access_token` and `refresh_token`
+9. Frontend receives session and stores it in secure storage
+10. Frontend uses session token for authenticated API calls and WebSocket connections
+
+**📝 Code Changes:**
+- **Backend (`backend/src/auth.ts`):**
+  - Added `walletPasswordStore` Map to store wallet passwords temporarily
+  - Modified `createOrLoginWithWallet()` to generate passwords and sign in users
+  - For existing users: Update password, sign in with Supabase, return session
+  - For new users: Create user with password, sign in immediately, return session
+  - Returns proper session object with `access_token`, `refresh_token`, `expires_in`, `expires_at`
+
+- **Backend (`backend/src/server.ts`):**
+  - Updated `/auth/wallet-login` endpoint to return session in response
+
+- **Frontend (`frontend/services/auth.ts`):**
+  - Updated `walletLogin()` to properly handle session from backend response
+  - Sets session in Supabase client using `supabase.auth.setSession()`
+  - Stores `access_token` for authenticated requests
+
+**✅ Result:** 
+- Wallet login now returns valid session tokens
+- WebSocket connections work properly after wallet login
+- Authenticated API calls succeed with proper JWT tokens
+- Users stay logged in across page refreshes
+
+---
+
+## Previous Update: Wallet Connection Persistence Fixed (Nov 4, 2025)
+
+Fixed critical issue where wallet connections were not being saved/restored after approval!
+
+### Bug Fixes Applied
+
+**🐛 Fixed Web Wallet Connection Persistence:**
+- **Root Cause:** Different wallet providers (Phantom vs Solflare) return connection data differently
+- **Solution 1:** Enhanced `WebWalletAdapter.connect()` to check both `response.publicKey` AND `provider.publicKey`
+- **Solution 2:** Added `checkExistingConnection()` method to detect and restore existing wallet connections on initialization
+- **Solution 3:** Added auto-detection effect in `useWalletConnection` hook to restore connected wallet state on mount
+- **Result:** Wallet connections are now properly saved and persist across page refreshes!
+
+**📝 Enhanced Debug Logging:**
+- Added detailed connection logging in `WebWalletAdapter.ts` to show response objects
+- Added state update logging in `useWalletConnection.ts` to track connection flow
+- Console logs now show: connection response, provider state, and final public key
+
+**🔧 Technical Details:**
+- Solflare and some wallets set `provider.publicKey` instead of returning it in the response object
+- The adapter now checks both locations and throws an error if neither is found
+- Event listeners are properly set up to handle account changes and disconnections
+- Existing connections are detected during adapter initialization
+
+### Issue Summary
+User reported: "After allowing permission to connect my solana wallet on web, it does not seem to be saved"
+- Logs showed: `[WebWallet] Connected: undefined` and `[useWalletConnection] Wallet connected - Public Key: undefined`
+- Root cause: Connection response didn't contain publicKey in expected location
+- Solution: Check multiple locations for publicKey and restore existing connections
+
+All issues resolved! Wallet connections now persist properly after approval.
+
+---
+
+## Previous Update: Wallet Display Bug Fixes (Nov 4, 2025)
+
+Fixed critical issues with wallet address display and React Native Web compatibility!
+
+### Bug Fixes Applied
+
+**🐛 Fixed Badge Component:**
+- Badge component now supports both `label` prop and `children` prop
+- Prevents "text node cannot be a child of View" error
+- Updated `Badge.tsx` to accept both patterns for backward compatibility
+
+**🐛 Fixed Gap Property Issue:**
+- Removed unsupported `gap` property from View styles in React Native Web
+- Replaced with proper margin-based spacing in `index.tsx` and `link-wallet.tsx`
+- Fixed flex layout issues with profile action buttons
+
+**🐛 Fixed Backend linkWallet Response:**
+- Backend now returns updated user object after linking wallet
+- Added `.select().single()` to return updated user data
+- Frontend properly receives and displays wallet address after linking
+
+**🐛 Fixed Border Color:**
+- Changed `border.primary` to `border.default` (correct theme property)
+
+**📝 Added Debug Logging:**
+- Added console logs in `AuthContext.tsx` to track wallet linking flow
+- Added logs in `link-wallet.tsx` to verify user state updates
+- Helps troubleshoot any future wallet connection issues
+
+---
+
+## 🎉 Previous Update: WalletConnect Integration (Nov 4, 2025)
+
+Successfully integrated **real Solana wallet support** with environment-based toggling and **enhanced security**!
+
+### Key Features Implemented
+
+**🔐 Backend Security:**
+- Nonce management system (cryptographically secure, single-use, auto-expiring)
+- Timestamp validation (5-min window prevents replay attacks)
+- Enhanced signature verification with nonce/timestamp
+- New endpoints: `POST /auth/request-nonce`, `GET /auth/wallet-message/:nonce`
+
+**📱 Multi-Platform Wallet Support:**
+- **WalletConnect** for iOS & Android (Phantom, Solflare, Backpack, etc.)
+- **Web Wallets** for browser extensions (Phantom, Solflare, Backpack)
+- **Mock Wallet** for development/testing (no native deps)
+- Environment-based auto-selection
+
+**🎨 Enhanced UX:**
+- Custom wallet address input (dev mode)
+- Real-time nonce expiry countdown
+- Wallet type indicators (Mock/WalletConnect/Web)
+- Improved error handling and display
+
+**🔗 Deep Linking:**
+- iOS: `chainequity://` + Universal Links
+- Android: Intent filters configured
+- LSApplicationQueriesSchemes for wallet apps
+
+### Files Created/Modified
+
+**New Files:**
+- `backend/src/nonce.ts`
+- `frontend/hooks/wallets/MockWallet.ts`
+- `frontend/hooks/wallets/WalletConnectAdapter.ts`
+- `frontend/hooks/wallets/WebWalletAdapter.ts`
+- `.env.example` files (frontend & backend)
+
+**Enhanced:**
+- `backend/src/auth.ts`, `backend/src/server.ts`
+- `frontend/hooks/useWalletConnection.ts`
+- `frontend/services/auth.ts`
+- `frontend/app/link-wallet.tsx`
+- `frontend/app.json`
+- `@docs/authentication-guide.md` (comprehensive docs)
+
+### Setup Instructions
+
+1. Get WalletConnect Project ID from https://cloud.walletconnect.com
+2. Configure `.env` files:
+   ```bash
+   # Frontend
+   EXPO_PUBLIC_USE_MOCK_WALLET=true  # false for production
+   EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID=your-project-id
+   
+   # Backend
+   WALLET_NONCE_EXPIRY=300000
+   WALLET_TIMESTAMP_WINDOW=300000
+   ```
+3. Install dependencies: `cd frontend && yarn install`
+4. For native: `npx expo prebuild` then `yarn ios` or `yarn android`
+
+See `@docs/authentication-guide.md` for complete setup and troubleshooting.
+
+## 🎉 Recent Update: Home Screen Refactored (Complete)
+
+**The home screen has been refactored into maintainable components and hooks!**
+
+**New Custom Hooks (`frontend/hooks/`)**
+- ✅ `useUsers.ts` - User management logic (fetch, create)
+- ✅ `useWebSocketConnection.ts` - WebSocket connection management with auto-reconnect
+- ✅ `useTokenMint.ts` - Solana token minting logic
+- All hooks exported via `hooks/index.ts`
+
+**New UI Components (`frontend/components/`)**
+- ✅ `WebSocketStatus.tsx` - Display connection status with test button
+- ✅ `WebSocketMessages.tsx` - Display recent WebSocket messages
+- ✅ `UserManagement.tsx` - User creation and fetch UI
+- ✅ `UsersList.tsx` - Display list of users with details
+- ✅ `TokenMinting.tsx` - Token minting UI with results display
+- All components exported via `components/index.ts`
+
+**Refactored `frontend/app/index.tsx`**
+- ✅ Reduced from 383 lines to ~50 lines (87% reduction!)
+- ✅ Clean separation of concerns (UI vs logic)
+- ✅ Easy to maintain and extend
+- ✅ Reusable components for future screens
+- ✅ Type-safe hooks with proper TypeScript types
+
+**Benefits:**
+- Much easier to maintain and debug
+- Components can be reused elsewhere
+- Logic centralized in hooks
+- Better testability
+- Improved code readability
+
+---
+
+## TypeScript Migration (Complete)
 
 **All backend JavaScript files have been migrated to TypeScript!**
 
@@ -18,13 +229,6 @@ This document tracks the progress of implementing the ChainEquity tokenized secu
 - ✅ Development workflow with ts-node and nodemon
 - ✅ Production build pipeline (TypeScript → JavaScript in `dist/`)
 - ✅ Updated documentation and README
-
-**Benefits:**
-- Better IDE support with IntelliSense
-- Catch errors at compile-time instead of runtime
-- Self-documenting code with explicit types
-- Easier refactoring and maintenance
-- Enhanced developer experience
 
 ---
 

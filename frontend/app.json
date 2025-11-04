@@ -15,16 +15,51 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.chainequity.app"
+      "bundleIdentifier": "org.archlife.peaksix-chainequity",
+      "associatedDomains": [
+        "applinks:peaksix.chainequity.archlife.org",
+        "applinks:*.peaksix.chainequity.archlife.org"
+      ],
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "phantom",
+          "solflare",
+          "backpack",
+          "glow",
+          "slope",
+          "sollet",
+          "trust",
+          "wc"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/chainequity-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.chainequity.app",
+      "package": "org.archlife.peaksix-chainequity",
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "scheme": "chainequity"
+            },
+            {
+              "scheme": "https",
+              "host": "peaksix.chainequity.archlife.org",
+              "pathPrefix": "/wc"
+            }
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/chainequity-icon.png",

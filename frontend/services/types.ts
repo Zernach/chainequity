@@ -3,12 +3,35 @@
  */
 
 // User types
+export type UserRole = 'admin' | 'issuer' | 'investor' | 'viewer';
+
 export interface User {
     id: string;
     name: string;
     wallet_address?: string;
     created_at: string;
     updated_at: string;
+}
+
+// Auth user types (extended with authentication fields)
+export interface AuthUser {
+    id: string;
+    auth_user_id: string;
+    email: string | null;
+    name: string;
+    role: UserRole;
+    wallet_address: string | null;
+    email_verified: boolean;
+    wallet_verified: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface Session {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    expires_at: number;
 }
 
 export interface CreateUserRequest {
@@ -195,6 +218,59 @@ export interface CapTableUpdatedEvent extends WebSocketEvent {
         token_mint: string;
         block_height: number;
     };
+}
+
+// Authentication request/response types
+export interface SignupRequest {
+    email: string;
+    password: string;
+    name: string;
+    role?: UserRole;
+}
+
+export interface LoginRequest {
+    email: string;
+    password: string;
+}
+
+export interface LinkWalletRequest {
+    wallet_address: string;
+    signature: string;
+    message: string;
+}
+
+export interface WalletLoginRequest {
+    wallet_address: string;
+    signature: string;
+    message: string;
+    email?: string;
+    name?: string;
+}
+
+export interface AuthResponse {
+    success: boolean;
+    user?: AuthUser;
+    session?: Session;
+    message?: string;
+    isNewUser?: boolean;
+    error?: string;
+}
+
+export interface VerifyWalletRequest {
+    wallet_address: string;
+    signature: string;
+    message: string;
+}
+
+export interface VerifyWalletResponse {
+    success: boolean;
+    verification?: {
+        valid: boolean;
+        wallet_address: string;
+        error?: string;
+    };
+    message?: string;
+    error?: string;
 }
 
 // API error types

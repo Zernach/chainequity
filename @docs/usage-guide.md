@@ -27,6 +27,26 @@ The server will start on:
 - REST API: http://localhost:3000
 - WebSocket: ws://localhost:3001
 
+### Starting the Frontend
+
+1. Configure environment variables:
+```bash
+cd frontend
+cp .env.example .env
+```
+
+2. Edit `.env` to match your backend URLs:
+```
+EXPO_PUBLIC_API_URL=http://localhost:3000
+EXPO_PUBLIC_WS_URL=ws://localhost:3001
+```
+
+3. Start the app:
+```bash
+npm install
+npm start
+```
+
 ### Database Setup
 
 1. Run migrations in Supabase SQL Editor (in order):
