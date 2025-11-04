@@ -7,7 +7,72 @@ This document tracks the progress of implementing the ChainEquity tokenized secu
 **Current Status:** Phase 1, 2 & 3 Complete ✅ | **Backend Migrated to TypeScript** ✅ | **Home Screen Refactored** ✅ | **WalletConnect Integration** ✅  
 **Next Phase:** Corporate Actions System
 
-## 🎉 Latest Update: Wallet Login Session Token Generation Fixed (Nov 4, 2025)
+## 🎉 Latest Update: Services Refactored into Modular Handlers (Nov 4, 2025)
+
+Successfully refactored the monolithic service files into clean, modular, containerized handlers!
+
+### Refactoring Benefits
+
+**🧩 Modular Architecture:**
+- Single Responsibility Principle - Each handler manages one domain
+- DRY - Shared base client eliminates code duplication
+- Maintainability - Easy to locate and modify specific functionality
+- Testability - Each handler can be tested independently
+- Scalability - Simple to add new handlers without touching existing code
+
+**📂 New Directory Structure:**
+```
+frontend/services/
+├── handlers/
+│   ├── base.ts                          # Shared HTTP client
+│   ├── authentication.handler.ts        # Email/password auth
+│   ├── wallet.handler.ts                # Wallet authentication
+│   ├── nonce.handler.ts                 # Nonce generation
+│   ├── users.handler.ts                 # User management
+│   ├── token.handler.ts                 # Token operations
+│   ├── allowlist.handler.ts             # Allowlist management
+│   ├── minting.handler.ts               # Token minting
+│   ├── transfers.handler.ts             # Transfer history
+│   ├── corporate-actions.handler.ts     # Corporate actions
+│   ├── cap-table.handler.ts             # Cap table operations
+│   ├── health.handler.ts                # Health checks
+│   └── index.ts                         # Barrel exports
+├── api.ts                               # Unified API client
+├── auth.ts                              # Unified auth service
+└── types.ts                             # Shared types
+```
+
+**🔧 Handler Responsibilities:**
+1. **BaseClient** - HTTP request methods (GET, POST, PUT, DELETE), auth token management
+2. **AuthenticationHandler** - Sign up, sign in, sign out, current user, session restore
+3. **WalletHandler** - Link wallet, verify wallet, wallet login
+4. **NonceHandler** - Request nonce, generate signature message, get wallet message
+5. **UsersHandler** - Get users, create user
+6. **TokenHandler** - Initialize token, get token info, get balance
+7. **AllowlistHandler** - Approve/revoke wallet, get allowlist, check status
+8. **MintingHandler** - Mint tokens
+9. **TransfersHandler** - Get transfer history
+10. **CorporateActionsHandler** - Stock splits, symbol changes
+11. **CapTableHandler** - Get cap table, export cap table
+12. **HealthHandler** - API health check
+
+**✨ Key Improvements:**
+- **Code Reduction:** Services now ~140 lines (down from 370 lines in api.ts and 370 lines in auth.ts)
+- **Reusability:** BaseClient used by all handlers (12 handlers sharing common logic)
+- **Type Safety:** Full TypeScript support with proper interfaces
+- **Backwards Compatibility:** Public API unchanged - existing code works without modification
+- **Separation of Concerns:** Authentication, wallet ops, and API calls properly separated
+
+**📝 Migration Details:**
+- `api.ts`: Refactored from 190-line class to delegator pattern using 8 handlers
+- `auth.ts`: Refactored from 370-line class to delegator pattern using 3 handlers
+- All handlers extend `BaseClient` for consistent HTTP methods
+- Token management propagates across all handlers that need authentication
+- Helper functions exported for backwards compatibility
+
+---
+
+## 🎉 Previous Update: Wallet Login Session Token Generation Fixed (Nov 4, 2025)
 
 Fixed critical wallet authentication bug where session tokens were not being generated after successful wallet verification!
 

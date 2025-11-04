@@ -1,193 +1,127 @@
 /**
  * Centralized API client for ChainEquity backend
+ * Refactored to use modular handlers for better maintainability
  */
+
+import {
+    API_BASE_URL,
+    HealthHandler,
+    UsersHandler,
+    TokenHandler,
+    AllowlistHandler,
+    MintingHandler,
+    TransfersHandler,
+    CorporateActionsHandler,
+    CapTableHandler,
+} from './handlers';
 
 import type {
     CreateUserRequest,
-    CreateUserResponse,
-    GetUsersResponse,
     ApproveWalletRequest,
-    ApproveWalletResponse,
     MintTokenRequest,
-    MintTokenResponse,
-    TransferHistoryResponse,
     StockSplitRequest,
-    StockSplitResponse,
     ChangeSymbolRequest,
-    ChangeSymbolResponse,
-    CapTableResponse,
-    ExportCapTableRequest,
-    TokenMetadata,
-    TokenBalance,
-    AllowlistEntry,
 } from './types';
 
-// Configuration - can be overridden via environment variables
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
-
+/**
+ * Unified API Client
+ * Delegates to specialized handlers while maintaining a single interface
+ */
 class APIClient {
-    private baseURL: string;
+    private health: HealthHandler;
+    private users: UsersHandler;
+    private tokens: TokenHandler;
+    private allowlist: AllowlistHandler;
+    private minting: MintingHandler;
+    private transfers: TransfersHandler;
+    private corporateActions: CorporateActionsHandler;
+    private capTable: CapTableHandler;
 
     constructor(baseURL: string = API_BASE_URL) {
-        this.baseURL = baseURL;
+        // Initialize all handlers with the same base URL
+        this.health = new HealthHandler(baseURL);
+        this.users = new UsersHandler(baseURL);
+        this.tokens = new TokenHandler(baseURL);
+        this.allowlist = new AllowlistHandler(baseURL);
+        this.minting = new MintingHandler(baseURL);
+        this.transfers = new TransfersHandler(baseURL);
+        this.corporateActions = new CorporateActionsHandler(baseURL);
+        this.capTable = new CapTableHandler(baseURL);
     }
 
-    private async request<T>(
-        endpoint: string,
-        options?: RequestInit
-    ): Promise<T> {
-        try {
-            const response = await fetch(`${this.baseURL}${endpoint}`, {
-                ...options,
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...options?.headers,
-                },
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || `HTTP ${response.status}`);
-            }
-
-            return data;
-        } catch (error) {
-            console.error(`API Error [${endpoint}]:`, error);
-            throw error;
-        }
+    // ==================== Health ====================
+    async checkHealth() {
+        return this.health.health();
     }
 
-    // Health check
-    async health() {
-        return this.request<{ status: string; message: string; timestamp: string }>(
-            '/health'
-        );
-    }
-
-    // User endpoints
+    // ==================== Users ====================
     async getUsers() {
-        return this.request<GetUsersResponse>('/users');
+        return this.users.getUsers();
     }
 
     async createUser(data: CreateUserRequest) {
-        return this.request<CreateUserResponse>('/users', {
-            method: 'POST',
-            body: JSON.stringify(data),
-        });
+        return this.users.createUser(data);
     }
 
-    // Token admin endpoints
+    // ==================== Tokens ====================
     async initializeToken(symbol: string, name: string, decimals: number = 9) {
-        return this.request<{ success: boolean; mint: string; signature: string }>(
-            '/admin/token/initialize',
-            {
-                method: 'POST',
-                body: JSON.stringify({ symbol, name, decimals }),
-            }
-        );
+        return this.tokens.initializeToken(symbol, name, decimals);
     }
 
     async getTokenInfo(tokenMint: string) {
-        return this.request<{ success: boolean; token: TokenMetadata }>(
-            `/token/${tokenMint}/info`
-        );
+        return this.tokens.getTokenInfo(tokenMint);
     }
 
-    // Allowlist endpoints
+    async getBalance(tokenMint: string, walletAddress: string) {
+        return this.tokens.getBalance(tokenMint, walletAddress);
+    }
+
+    // ==================== Allowlist ====================
     async approveWallet(data: ApproveWalletRequest) {
-        return this.request<ApproveWalletResponse>('/admin/allowlist/approve', {
-            method: 'POST',
-            body: JSON.stringify(data),
-        });
+        return this.allowlist.approveWallet(data);
     }
 
     async revokeWallet(tokenMint: string, walletAddress: string) {
-        return this.request<{ success: boolean }>(
-            '/admin/allowlist/revoke',
-            {
-                method: 'POST',
-                body: JSON.stringify({
-                    token_mint: tokenMint,
-                    wallet_address: walletAddress,
-                }),
-            }
-        );
+        return this.allowlist.revokeWallet(tokenMint, walletAddress);
     }
 
     async getAllowlist(tokenMint: string) {
-        return this.request<{ success: boolean; entries: AllowlistEntry[] }>(
-            `/admin/allowlist/${tokenMint}`
-        );
+        return this.allowlist.getAllowlist(tokenMint);
     }
 
     async checkAllowlistStatus(tokenMint: string, walletAddress: string) {
-        return this.request<{ success: boolean; entry: AllowlistEntry }>(
-            `/allowlist/${tokenMint}/${walletAddress}`
-        );
+        return this.allowlist.checkAllowlistStatus(tokenMint, walletAddress);
     }
 
-    // Minting endpoints
+    // ==================== Minting ====================
     async mintTokens(data: MintTokenRequest) {
-        return this.request<MintTokenResponse>('/admin/mint', {
-            method: 'POST',
-            body: JSON.stringify(data),
-        });
+        return this.minting.mintTokens(data);
     }
 
-    // Balance endpoints
-    async getBalance(tokenMint: string, walletAddress: string) {
-        return this.request<{ success: boolean; balance: TokenBalance }>(
-            `/token/${tokenMint}/balance/${walletAddress}`
-        );
-    }
-
-    // Transfer endpoints
+    // ==================== Transfers ====================
     async getTransferHistory(tokenMint: string) {
-        return this.request<TransferHistoryResponse>(
-            `/admin/transfers/${tokenMint}`
-        );
+        return this.transfers.getTransferHistory(tokenMint);
     }
 
-    // Corporate action endpoints
+    // ==================== Corporate Actions ====================
     async executeStockSplit(data: StockSplitRequest) {
-        return this.request<StockSplitResponse>(
-            '/admin/corporate-actions/split',
-            {
-                method: 'POST',
-                body: JSON.stringify(data),
-            }
-        );
+        return this.corporateActions.executeStockSplit(data);
     }
 
     async changeSymbol(data: ChangeSymbolRequest) {
-        return this.request<ChangeSymbolResponse>(
-            '/admin/corporate-actions/change-symbol',
-            {
-                method: 'POST',
-                body: JSON.stringify(data),
-            }
-        );
+        return this.corporateActions.changeSymbol(data);
     }
 
-    // Cap table endpoints
+    // ==================== Cap Table ====================
     async getCapTable(tokenMint: string, blockHeight?: number) {
-        const endpoint = blockHeight
-            ? `/cap-table/${tokenMint}/${blockHeight}`
-            : `/cap-table/${tokenMint}`;
-        return this.request<CapTableResponse>(endpoint);
+        return this.capTable.getCapTable(tokenMint, blockHeight);
     }
 
     async exportCapTable(tokenMint: string, format: 'csv' | 'json') {
-        return this.request<{ success: boolean; data: string }>(
-            `/cap-table/${tokenMint}/export`,
-            {
-                method: 'POST',
-                body: JSON.stringify({ format }),
-            }
-        );
+        return this.capTable.exportCapTable(tokenMint, format);
     }
 }
 
 export const api = new APIClient();
+export { API_BASE_URL };
 
