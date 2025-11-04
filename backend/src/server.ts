@@ -12,6 +12,25 @@ import {
     getHolderCountHistory,
     getConcentrationMetrics,
 } from './cap-table';
+import {
+    authenticateRequest,
+    requireRole,
+    supabaseClient,
+    supabaseAdmin,
+    createUserWithEmail,
+    createOrLoginWithWallet,
+    linkWalletToUser,
+    verifyWalletSignature,
+    getUserByAuthId,
+} from './auth';
+import {
+    AuthRequest,
+    SignupRequest,
+    LoginRequest,
+    LinkWalletRequest,
+    VerifyWalletRequest,
+    WalletLoginRequest,
+} from './types/auth.types';
 
 dotenv.config();
 
@@ -32,8 +51,369 @@ app.get('/health', (_req: Request, res: Response) => {
     });
 });
 
-// Get all users
-app.get('/users', async (_req: Request, res: Response) => {
+// ============================================================================
+// AUTHENTICATION ENDPOINTS
+// ============================================================================
+
+/**
+ * Sign up with email/password
+ * POST /auth/signup
+ * Body: { email, password, name, role? }
+ */
+app.post('/auth/signup', async (req: Request, res: Response) => {
+    try {
+        const signupData: SignupRequest = req.body;
+
+        // Validate required fields
+        if (!signupData.email || !signupData.password || !signupData.name) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email, password, and name are required',
+            });
+        }
+
+        // Create user
+        const result = await createUserWithEmail(signupData);
+
+        if (!result.success || !result.user) {
+            return res.status(400).json({
+                success: false,
+                error: result.error || 'Failed to create account',
+            });
+        }
+
+        // Session token generation is handled by Supabase automatically
+
+        return res.json({
+            success: true,
+            user: result.user,
+            message: 'Account created successfully',
+        });
+    } catch (error) {
+        console.error('Signup error:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to create account',
+        });
+    }
+});
+
+/**
+ * Login with email/password
+ * POST /auth/login
+ * Body: { email, password }
+ */
+app.post('/auth/login', async (req: Request, res: Response) => {
+    try {
+        const { email, password }: LoginRequest = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email and password are required',
+            });
+        }
+
+        // Authenticate with Supabase
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email,
+            password,
+        });
+
+        if (error || !data.user) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid email or password',
+            });
+        }
+
+        // Fetch user profile
+        const { data: userProfile, error: profileError } = await supabaseAdmin
+            .from('users')
+            .select('*')
+            .eq('auth_user_id', data.user.id)
+            .single();
+
+        if (profileError || !userProfile) {
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to fetch user profile',
+            });
+        }
+
+        return res.json({
+            success: true,
+            user: userProfile,
+            session: {
+                access_token: data.session.access_token,
+                refresh_token: data.session.refresh_token,
+                expires_in: data.session.expires_in,
+                expires_at: data.session.expires_at,
+            },
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to login',
+        });
+    }
+});
+
+/**
+ * Logout
+ * POST /auth/logout
+ * Headers: Authorization: Bearer <token>
+ */
+app.post('/auth/logout', authenticateRequest, async (_req: AuthRequest, res: Response) => {
+    try {
+        // Supabase handles JWT invalidation automatically
+        // This endpoint is mainly for consistency and logging
+        return res.json({
+            success: true,
+            message: 'Logged out successfully',
+        });
+    } catch (error) {
+        console.error('Logout error:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to logout',
+        });
+    }
+});
+
+/**
+ * Request a nonce for wallet signature
+ * POST /auth/request-nonce
+ * Body: { wallet_address? } (optional: associate nonce with wallet)
+ */
+app.post('/auth/request-nonce', async (req: Request, res: Response) => {
+    try {
+        const { wallet_address } = req.body;
+        const { nonceManager } = require('./nonce');
+
+        // Create nonce
+        const storedNonce = nonceManager.createNonce(wallet_address);
+
+        return res.json({
+            success: true,
+            nonce: storedNonce.nonce,
+            expiresAt: storedNonce.expiresAt,
+            expiresIn: Math.floor((storedNonce.expiresAt - Date.now()) / 1000), // seconds
+        });
+    } catch (error) {
+        console.error('Request nonce error:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to generate nonce',
+        });
+    }
+});
+
+/**
+ * Get formatted wallet signature message with nonce
+ * GET /auth/wallet-message/:nonce
+ */
+app.get('/auth/wallet-message/:nonce', async (req: Request, res: Response) => {
+    try {
+        const { nonce } = req.params;
+        const { nonceManager } = require('./nonce');
+
+        // Verify nonce exists and is valid
+        if (!nonceManager.isValid(nonce)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid or expired nonce',
+            });
+        }
+
+        // Generate message
+        const timestamp = Date.now();
+        const message = `Sign this message to verify wallet ownership.\n\nNonce: ${nonce}\nTimestamp: ${timestamp}`;
+
+        return res.json({
+            success: true,
+            message,
+            nonce,
+            timestamp,
+        });
+    } catch (error) {
+        console.error('Get wallet message error:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to generate message',
+        });
+    }
+});
+
+/**
+ * Get current user profile
+ * GET /auth/me
+ * Headers: Authorization: Bearer <token>
+ */
+app.get('/auth/me', authenticateRequest, async (req: AuthRequest, res: Response) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                error: 'Not authenticated',
+            });
+        }
+
+        return res.json({
+            success: true,
+            user: req.user,
+        });
+    } catch (error) {
+        console.error('Get user error:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch user',
+        });
+    }
+});
+
+/**
+ * Link wallet to existing authenticated user
+ * POST /auth/link-wallet
+ * Headers: Authorization: Bearer <token>
+ * Body: { wallet_address, signature, message }
+ */
+app.post('/auth/link-wallet', authenticateRequest, async (req: AuthRequest, res: Response) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                error: 'Not authenticated',
+            });
+        }
+
+        const { wallet_address, signature, message }: LinkWalletRequest = req.body;
+
+        if (!wallet_address || !signature || !message) {
+            return res.status(400).json({
+                success: false,
+                error: 'wallet_address, signature, and message are required',
+            });
+        }
+
+        // Link wallet to user
+        const result = await linkWalletToUser(req.user.id, wallet_address, signature, message);
+
+        if (!result.success) {
+            return res.status(400).json({
+                success: false,
+                error: result.error || 'Failed to link wallet',
+            });
+        }
+
+        // Fetch updated user profile
+        const updatedUser = await getUserByAuthId(req.user.auth_user_id);
+
+        return res.json({
+            success: true,
+            user: updatedUser,
+            message: 'Wallet linked successfully',
+        });
+    } catch (error) {
+        console.error('Link wallet error:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to link wallet',
+        });
+    }
+});
+
+/**
+ * Verify wallet signature (without linking)
+ * POST /auth/verify-wallet
+ * Body: { wallet_address, signature, message }
+ */
+app.post('/auth/verify-wallet', async (req: Request, res: Response) => {
+    try {
+        const { wallet_address, signature, message }: VerifyWalletRequest = req.body;
+
+        if (!wallet_address || !signature || !message) {
+            return res.status(400).json({
+                success: false,
+                error: 'wallet_address, signature, and message are required',
+            });
+        }
+
+        const verification = verifyWalletSignature(wallet_address, signature, message);
+
+        if (!verification.valid) {
+            return res.status(400).json({
+                success: false,
+                error: verification.error || 'Invalid signature',
+                verification,
+            });
+        }
+
+        return res.json({
+            success: true,
+            verification,
+            message: 'Signature verified successfully',
+        });
+    } catch (error) {
+        console.error('Verify wallet error:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to verify signature',
+        });
+    }
+});
+
+/**
+ * Login or create account with wallet
+ * POST /auth/wallet-login
+ * Body: { wallet_address, signature, message, email?, name? }
+ */
+app.post('/auth/wallet-login', async (req: Request, res: Response) => {
+    try {
+        const walletData: WalletLoginRequest = req.body;
+
+        if (!walletData.wallet_address || !walletData.signature || !walletData.message) {
+            return res.status(400).json({
+                success: false,
+                error: 'wallet_address, signature, and message are required',
+            });
+        }
+
+        // Create or login user
+        const result = await createOrLoginWithWallet(walletData);
+
+        if (!result.success || !result.user) {
+            return res.status(400).json({
+                success: false,
+                error: result.error || 'Failed to process wallet login',
+            });
+        }
+
+        return res.json({
+            success: true,
+            user: result.user,
+            session: result.session,
+            isNewUser: result.isNewUser,
+            message: result.isNewUser
+                ? 'Account created successfully'
+                : 'Logged in successfully',
+        });
+    } catch (error) {
+        console.error('Wallet login error:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to process wallet login',
+        });
+    }
+});
+
+// ============================================================================
+// USER MANAGEMENT ENDPOINTS
+// ============================================================================
+
+// Get all users (admin only)
+app.get('/users', authenticateRequest, requireRole(['admin']), async (_req: AuthRequest, res: Response) => {
     try {
         const { data, error } = await supabase
             .from('users')
@@ -56,8 +436,8 @@ app.get('/users', async (_req: Request, res: Response) => {
     }
 });
 
-// Create new user
-app.post('/users', async (req: Request, res: Response) => {
+// Create new user (admin only - for manual user creation)
+app.post('/users', authenticateRequest, requireRole(['admin']), async (req: AuthRequest, res: Response) => {
     try {
         const { name, wallet_address } = req.body;
 
@@ -93,8 +473,12 @@ app.post('/users', async (req: Request, res: Response) => {
     }
 });
 
-// Mint Solana token (devnet airdrop)
-app.post('/mint-token', async (req: Request, res: Response) => {
+// ============================================================================
+// SOLANA ENDPOINTS
+// ============================================================================
+
+// Mint Solana token (devnet airdrop) - authenticated users only
+app.post('/mint-token', authenticateRequest, async (req: AuthRequest, res: Response) => {
     try {
         const { amount } = req.body;
         const tokenAmount = amount || 1;
@@ -117,8 +501,8 @@ app.post('/mint-token', async (req: Request, res: Response) => {
     }
 });
 
-// Create new Solana wallet
-app.post('/create-wallet', async (_req: Request, res: Response) => {
+// Create new Solana wallet - authenticated users only
+app.post('/create-wallet', authenticateRequest, async (_req: AuthRequest, res: Response) => {
     try {
         const wallet = createWallet();
         res.json({
@@ -134,8 +518,8 @@ app.post('/create-wallet', async (_req: Request, res: Response) => {
     }
 });
 
-// Get wallet balance
-app.get('/balance/:publicKey', async (req: Request, res: Response) => {
+// Get wallet balance - authenticated users only
+app.get('/balance/:publicKey', authenticateRequest, async (req: AuthRequest, res: Response) => {
     try {
         const { publicKey } = req.params;
         const balance = await getBalance(publicKey);
@@ -166,10 +550,10 @@ app.get('/balance/:publicKey', async (req: Request, res: Response) => {
 // ============================================================================
 
 /**
- * Get current cap table for a token
+ * Get current cap table for a token - authenticated users
  * GET /cap-table/:mintAddress
  */
-app.get('/cap-table/:mintAddress', async (req: Request, res: Response) => {
+app.get('/cap-table/:mintAddress', authenticateRequest, async (req: AuthRequest, res: Response) => {
     try {
         const { mintAddress } = req.params;
         const capTable = await generateCapTable(mintAddress);
@@ -188,10 +572,10 @@ app.get('/cap-table/:mintAddress', async (req: Request, res: Response) => {
 });
 
 /**
- * Get historical cap table at a specific block height
+ * Get historical cap table at a specific block height - authenticated users
  * GET /cap-table/:mintAddress/:blockHeight
  */
-app.get('/cap-table/:mintAddress/:blockHeight', async (req: Request, res: Response) => {
+app.get('/cap-table/:mintAddress/:blockHeight', authenticateRequest, async (req: AuthRequest, res: Response) => {
     try {
         const { mintAddress, blockHeight } = req.params;
         const blockHeightNum = parseInt(blockHeight, 10);
@@ -219,11 +603,11 @@ app.get('/cap-table/:mintAddress/:blockHeight', async (req: Request, res: Respon
 });
 
 /**
- * Export cap table as CSV or JSON
+ * Export cap table as CSV or JSON - authenticated users
  * POST /cap-table/:mintAddress/export
  * Body: { format: 'csv' | 'json', blockHeight?: number }
  */
-app.post('/cap-table/:mintAddress/export', async (req: Request, res: Response) => {
+app.post('/cap-table/:mintAddress/export', authenticateRequest, async (req: AuthRequest, res: Response) => {
     try {
         const { mintAddress } = req.params;
         const { format = 'json', blockHeight = null } = req.body;
@@ -262,10 +646,10 @@ app.post('/cap-table/:mintAddress/export', async (req: Request, res: Response) =
 });
 
 /**
- * Get transfer history for a token
+ * Get transfer history for a token - authenticated users
  * GET /transfers/:mintAddress?limit=100&offset=0&from=...&to=...
  */
-app.get('/transfers/:mintAddress', async (req: Request, res: Response) => {
+app.get('/transfers/:mintAddress', authenticateRequest, async (req: AuthRequest, res: Response) => {
     try {
         const { mintAddress } = req.params;
         const { limit, offset, from, to } = req.query;
@@ -293,10 +677,10 @@ app.get('/transfers/:mintAddress', async (req: Request, res: Response) => {
 });
 
 /**
- * Get holder count history over time
+ * Get holder count history over time - authenticated users
  * GET /cap-table/:mintAddress/history/holder-count
  */
-app.get('/cap-table/:mintAddress/history/holder-count', async (req: Request, res: Response) => {
+app.get('/cap-table/:mintAddress/history/holder-count', authenticateRequest, async (req: AuthRequest, res: Response) => {
     try {
         const { mintAddress } = req.params;
         const history = await getHolderCountHistory(mintAddress);
@@ -315,10 +699,10 @@ app.get('/cap-table/:mintAddress/history/holder-count', async (req: Request, res
 });
 
 /**
- * Get concentration metrics (top holders, Gini coefficient)
+ * Get concentration metrics (top holders, Gini coefficient) - authenticated users
  * GET /cap-table/:mintAddress/metrics/concentration
  */
-app.get('/cap-table/:mintAddress/metrics/concentration', async (req: Request, res: Response) => {
+app.get('/cap-table/:mintAddress/metrics/concentration', authenticateRequest, async (req: AuthRequest, res: Response) => {
     try {
         const { mintAddress } = req.params;
         const metrics = await getConcentrationMetrics(mintAddress);
@@ -341,10 +725,10 @@ app.get('/cap-table/:mintAddress/metrics/concentration', async (req: Request, re
 // ============================================================================
 
 /**
- * Get all securities (token mints)
+ * Get all securities (token mints) - authenticated users
  * GET /securities
  */
-app.get('/securities', async (_req: Request, res: Response) => {
+app.get('/securities', authenticateRequest, async (_req: AuthRequest, res: Response) => {
     try {
         const { data, error } = await supabase
             .from('securities')
@@ -369,10 +753,10 @@ app.get('/securities', async (_req: Request, res: Response) => {
 });
 
 /**
- * Get security details by mint address
+ * Get security details by mint address - authenticated users
  * GET /securities/:mintAddress
  */
-app.get('/securities/:mintAddress', async (req: Request, res: Response) => {
+app.get('/securities/:mintAddress', authenticateRequest, async (req: AuthRequest, res: Response) => {
     try {
         const { mintAddress } = req.params;
 
@@ -405,10 +789,10 @@ app.get('/securities/:mintAddress', async (req: Request, res: Response) => {
 });
 
 /**
- * Get allowlist entries for a security
+ * Get allowlist entries for a security - admins and issuers only
  * GET /allowlist/:mintAddress
  */
-app.get('/allowlist/:mintAddress', async (req: Request, res: Response) => {
+app.get('/allowlist/:mintAddress', authenticateRequest, requireRole(['admin', 'issuer']), async (req: AuthRequest, res: Response) => {
     try {
         const { mintAddress } = req.params;
 
@@ -450,10 +834,10 @@ app.get('/allowlist/:mintAddress', async (req: Request, res: Response) => {
 });
 
 /**
- * Check if a wallet is on the allowlist
+ * Check if a wallet is on the allowlist - authenticated users
  * GET /allowlist/:mintAddress/:walletAddress
  */
-app.get('/allowlist/:mintAddress/:walletAddress', async (req: Request, res: Response) => {
+app.get('/allowlist/:mintAddress/:walletAddress', authenticateRequest, async (req: AuthRequest, res: Response) => {
     try {
         const { mintAddress, walletAddress } = req.params;
 
