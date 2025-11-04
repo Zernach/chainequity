@@ -140,6 +140,117 @@ pub mod gated_token {
 
         Ok(())
     }
+
+    /// Execute a stock split by creating a new token with multiplied supply
+    pub fn execute_stock_split(
+        ctx: Context<ExecuteStockSplit>,
+        split_ratio: u64,
+        new_symbol: String,
+        new_name: String,
+    ) -> Result<()> {
+        require!(split_ratio > 0, ErrorCode::InvalidSplitRatio);
+        require!(new_symbol.len() >= 3 && new_symbol.len() <= 10, ErrorCode::InvalidSymbol);
+        require!(new_name.len() >= 2 && new_name.len() <= 50, ErrorCode::InvalidName);
+
+        let split_config = &mut ctx.accounts.split_config;
+        let clock = Clock::get()?;
+        
+        split_config.original_mint = ctx.accounts.old_token_config.mint;
+        split_config.new_mint = ctx.accounts.new_mint.key();
+        split_config.split_ratio = split_ratio;
+        split_config.executed_at = clock.unix_timestamp;
+        split_config.executed_by = ctx.accounts.authority.key();
+        split_config.bump = ctx.bumps.split_config;
+
+        // Initialize new token config with split ratio applied
+        let new_token_config = &mut ctx.accounts.new_token_config;
+        new_token_config.authority = ctx.accounts.authority.key();
+        new_token_config.mint = ctx.accounts.new_mint.key();
+        new_token_config.symbol = new_symbol.clone();
+        new_token_config.name = new_name.clone();
+        new_token_config.decimals = ctx.accounts.old_token_config.decimals;
+        new_token_config.total_supply = ctx.accounts.old_token_config.total_supply
+            .checked_mul(split_ratio)
+            .ok_or(ErrorCode::Overflow)?;
+        new_token_config.bump = ctx.bumps.new_token_config;
+
+        emit!(StockSplitExecutedEvent {
+            old_mint: split_config.original_mint,
+            new_mint: split_config.new_mint,
+            split_ratio,
+            authority: ctx.accounts.authority.key(),
+            timestamp: clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
+    /// Migrate a holder's balance to the new token after a split
+    pub fn migrate_holder_split(
+        ctx: Context<MigrateHolderSplit>,
+        old_balance: u64,
+    ) -> Result<()> {
+        let split_config = &ctx.accounts.split_config;
+        let new_balance = old_balance
+            .checked_mul(split_config.split_ratio)
+            .ok_or(ErrorCode::Overflow)?;
+
+        // Mint new tokens equal to old balance * split ratio
+        let cpi_accounts = token::MintTo {
+            mint: ctx.accounts.new_mint.to_account_info(),
+            to: ctx.accounts.holder_new_token_account.to_account_info(),
+            authority: ctx.accounts.authority.to_account_info(),
+        };
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        token::mint_to(cpi_ctx, new_balance)?;
+
+        // Update new token config total supply
+        let new_token_config = &mut ctx.accounts.new_token_config;
+        new_token_config.total_supply = new_token_config.total_supply
+            .checked_add(new_balance)
+            .ok_or(ErrorCode::Overflow)?;
+
+        emit!(HolderMigratedEvent {
+            wallet: ctx.accounts.holder.key(),
+            old_balance,
+            new_balance,
+            split_ratio: split_config.split_ratio,
+        });
+
+        Ok(())
+    }
+
+    /// Update token metadata (symbol and name)
+    pub fn update_token_metadata(
+        ctx: Context<UpdateTokenMetadata>,
+        new_symbol: String,
+        new_name: String,
+    ) -> Result<()> {
+        require!(new_symbol.len() >= 3 && new_symbol.len() <= 10, ErrorCode::InvalidSymbol);
+        require!(new_name.len() >= 2 && new_name.len() <= 50, ErrorCode::InvalidName);
+
+        let token_config = &mut ctx.accounts.token_config;
+        let old_symbol = token_config.symbol.clone();
+        let old_name = token_config.name.clone();
+
+        token_config.symbol = new_symbol.clone();
+        token_config.name = new_name.clone();
+
+        let clock = Clock::get()?;
+
+        emit!(SymbolChangedEvent {
+            mint: token_config.mint,
+            old_symbol,
+            new_symbol,
+            old_name,
+            new_name,
+            authority: ctx.accounts.authority.key(),
+            timestamp: clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
 }
 
 // Account structures
@@ -160,6 +271,16 @@ pub struct AllowlistEntry {
     pub is_approved: bool,
     pub approved_at: i64,
     pub revoked_at: Option<i64>,
+    pub bump: u8,
+}
+
+#[account]
+pub struct SplitConfig {
+    pub original_mint: Pubkey,
+    pub new_mint: Pubkey,
+    pub split_ratio: u64,
+    pub executed_at: i64,
+    pub executed_by: Pubkey,
     pub bump: u8,
 }
 
@@ -321,6 +442,98 @@ pub struct GatedTransfer<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+#[derive(Accounts)]
+#[instruction(split_ratio: u64, new_symbol: String, new_name: String)]
+pub struct ExecuteStockSplit<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    
+    #[account(
+        seeds = [b"token_config", old_token_config.mint.as_ref()],
+        bump = old_token_config.bump,
+        constraint = old_token_config.authority == authority.key() @ ErrorCode::UnauthorizedAuthority
+    )]
+    pub old_token_config: Account<'info, TokenConfig>,
+    
+    #[account(
+        init,
+        payer = authority,
+        mint::decimals = old_token_config.decimals,
+        mint::authority = authority,
+    )]
+    pub new_mint: Account<'info, Mint>,
+    
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + 32 + 32 + 40 + 100 + 1 + 8 + 1,
+        seeds = [b"token_config", new_mint.key().as_ref()],
+        bump
+    )]
+    pub new_token_config: Account<'info, TokenConfig>,
+    
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + 32 + 32 + 8 + 8 + 32 + 1,
+        seeds = [b"split_config", old_token_config.mint.as_ref(), new_mint.key().as_ref()],
+        bump
+    )]
+    pub split_config: Account<'info, SplitConfig>,
+    
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+    pub rent: Sysvar<'info, Rent>,
+}
+
+#[derive(Accounts)]
+pub struct MigrateHolderSplit<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    
+    /// CHECK: Holder wallet
+    pub holder: AccountInfo<'info>,
+    
+    #[account(
+        seeds = [b"split_config", split_config.original_mint.as_ref(), split_config.new_mint.as_ref()],
+        bump = split_config.bump
+    )]
+    pub split_config: Account<'info, SplitConfig>,
+    
+    #[account(mut)]
+    pub new_mint: Account<'info, Mint>,
+    
+    #[account(
+        mut,
+        seeds = [b"token_config", new_mint.key().as_ref()],
+        bump = new_token_config.bump
+    )]
+    pub new_token_config: Account<'info, TokenConfig>,
+    
+    #[account(
+        mut,
+        constraint = holder_new_token_account.mint == new_mint.key(),
+        constraint = holder_new_token_account.owner == holder.key()
+    )]
+    pub holder_new_token_account: Account<'info, TokenAccount>,
+    
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateTokenMetadata<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    
+    #[account(
+        mut,
+        seeds = [b"token_config", token_config.mint.as_ref()],
+        bump = token_config.bump,
+        constraint = token_config.authority == authority.key() @ ErrorCode::UnauthorizedAuthority
+    )]
+    pub token_config: Account<'info, TokenConfig>,
+}
+
 // Events
 #[event]
 pub struct TokenInitializedEvent {
@@ -363,6 +576,34 @@ pub struct TokensTransferredEvent {
     pub amount: u64,
 }
 
+#[event]
+pub struct StockSplitExecutedEvent {
+    pub old_mint: Pubkey,
+    pub new_mint: Pubkey,
+    pub split_ratio: u64,
+    pub authority: Pubkey,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct HolderMigratedEvent {
+    pub wallet: Pubkey,
+    pub old_balance: u64,
+    pub new_balance: u64,
+    pub split_ratio: u64,
+}
+
+#[event]
+pub struct SymbolChangedEvent {
+    pub mint: Pubkey,
+    pub old_symbol: String,
+    pub new_symbol: String,
+    pub old_name: String,
+    pub new_name: String,
+    pub authority: Pubkey,
+    pub timestamp: i64,
+}
+
 // Error codes
 #[error_code]
 pub enum ErrorCode {
@@ -392,5 +633,8 @@ pub enum ErrorCode {
     
     #[msg("Arithmetic overflow")]
     Overflow,
+    
+    #[msg("Invalid split ratio: must be greater than 0")]
+    InvalidSplitRatio,
 }
 

@@ -262,21 +262,45 @@ Frontend A               Backend                 Frontend B
 
 ```
 chainequity/
-├── backend/              # Backend services
-│   ├── server.js        # Main entry point
-│   ├── websocket.js     # WebSocket logic
-│   ├── solana.js        # Blockchain logic
-│   └── db.js            # Database logic
+├── backend/                    # Backend services
+│   ├── src/
+│   │   ├── server.ts          # Main entry point (89 lines - routes only)
+│   │   ├── handlers/          # Request handlers (modular)
+│   │   │   ├── index.ts       # Barrel export
+│   │   │   ├── auth.handlers.ts
+│   │   │   ├── users.handlers.ts
+│   │   │   ├── solana.handlers.ts
+│   │   │   ├── cap-table.handlers.ts
+│   │   │   ├── securities.handlers.ts
+│   │   │   └── admin.handlers.ts
+│   │   ├── websocket.ts       # WebSocket logic
+│   │   ├── solana.ts          # Blockchain logic
+│   │   ├── auth.ts            # Authentication logic
+│   │   ├── cap-table.ts       # Cap table logic
+│   │   ├── corporate-actions.ts # Corporate actions
+│   │   ├── program-client.ts  # Smart contract client
+│   │   ├── db.ts              # Database logic
+│   │   ├── nonce.ts           # Nonce management
+│   │   ├── indexer.ts         # Blockchain indexer
+│   │   ├── types/             # TypeScript types
+│   │   └── utils/             # Utilities
+│   └── dist/                  # Compiled JavaScript
 │
-├── frontend/            # Frontend application
-│   ├── app/             # Expo Router pages
-│   └── components/      # Reusable components
+├── frontend/                  # Frontend application
+│   ├── app/                   # Expo Router pages
+│   ├── components/            # Reusable components
+│   ├── hooks/                 # Custom React hooks
+│   ├── services/              # API services
+│   └── contexts/              # React contexts
 │
-├── database/            # Database migrations
-│   └── *.sql           # Migration files
+├── contracts/                 # Smart contracts
+│   └── gated-token/          # Anchor program
 │
-└── @docs/              # Documentation
-    └── *.md            # Architecture docs
+├── database/                  # Database migrations
+│   └── *.sql                 # Migration files
+│
+└── @docs/                    # Documentation
+    └── *.md                  # Architecture docs
 ```
 
 ## Development Workflow
@@ -336,9 +360,56 @@ EXPO_PUBLIC_API_URL  # Backend API URL (e.g., http://localhost:3000)
                      # WebSocket automatically connects to {API_URL}/ws
 ```
 
+## Backend Architecture Pattern
+
+### Handler-Based Route Organization
+
+The backend uses a **handler-based architecture** to keep the main server file clean and maintainable:
+
+**server.ts (89 lines)** - Route definitions only
+- Middleware setup
+- Route mapping
+- Authentication and authorization middleware
+- No business logic
+
+**handlers/** - Request handling logic
+- Each handler file focuses on a specific domain
+- Handlers contain all endpoint logic
+- Easy to test in isolation
+- Simple to maintain and extend
+
+**Benefits:**
+- **Maintainability**: Server.ts reduced from 1107 lines to 89 lines (92% reduction)
+- **Modularity**: Each handler file is self-contained
+- **Testability**: Handlers can be unit tested independently
+- **Scalability**: Easy to add new endpoints without cluttering main file
+- **Code Navigation**: Clear separation makes finding code easier
+
+**Example handler structure:**
+```typescript
+// handlers/auth.handlers.ts
+export async function signup(req: Request, res: Response) {
+    // All signup logic here
+}
+
+export async function login(req: Request, res: Response) {
+    // All login logic here
+}
+```
+
+**Example route mapping:**
+```typescript
+// server.ts
+import * as handlers from './handlers';
+
+app.post('/auth/signup', handlers.signup);
+app.post('/auth/login', handlers.login);
+```
+
 ## Best Practices Implemented
 
 ✅ Separation of concerns (modular files)
+✅ Handler-based route organization
 ✅ Environment variable management
 ✅ Error handling with try-catch
 ✅ Reusable components

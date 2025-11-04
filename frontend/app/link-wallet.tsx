@@ -367,7 +367,7 @@ export default function LinkWalletScreen() {
 
             <Button
                 title="Back to Home"
-                onPress={() => router.back()}
+                onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
                 variant="secondary"
                 style={styles.button}
             />
