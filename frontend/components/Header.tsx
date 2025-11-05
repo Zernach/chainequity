@@ -55,7 +55,7 @@ export function Header({
     };
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top || 12 }]}>
             {showBackButton && (
                 <TouchableOpacity
                     style={styles.backButton}

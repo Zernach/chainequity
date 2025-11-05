@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, FlatList } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
-import { Card, Button, Input, AlertModal } from '../../components';
+import { Card, Button, Input, AlertModal, WalletAddress, Badge } from '../../components';
 import { theme } from '../../constants';
 import { api } from '../../services/api';
 import { useAlertModal, useSecurities } from '../../hooks';
+import type { AllowlistEntry } from '../../services/types';
 
 /**
  * Token Minting Screen
@@ -15,9 +16,40 @@ export default function MintTokens() {
     const [recipient, setRecipient] = useState('');
     const [amount, setAmount] = useState('');
     const [loading, setLoading] = useState(false);
+    const [loadingAllowlist, setLoadingAllowlist] = useState(false);
+    const [allowlist, setAllowlist] = useState<AllowlistEntry[]>([]);
     const [showSecuritiesDropdown, setShowSecuritiesDropdown] = useState(false);
     const { alertState, hideAlert, error, success, confirm } = useAlertModal();
     const { securities, loading: loadingSecurities, refetch: refetchSecurities } = useSecurities();
+
+    // Load allowlist when token is selected
+    useEffect(() => {
+        const loadAllowlist = async () => {
+            if (!tokenMint) {
+                setAllowlist([]);
+                return;
+            }
+
+            setLoadingAllowlist(true);
+            try {
+                const result = await api.getAllowlist(tokenMint);
+                if (result.success) {
+                    // Filter to only show approved wallets
+                    const approvedWallets = (result.allowlist || []).filter(
+                        entry => entry.status === 'approved'
+                    );
+                    setAllowlist(approvedWallets);
+                }
+            } catch (err) {
+                console.error('Error loading allowlist:', err);
+                setAllowlist([]);
+            } finally {
+                setLoadingAllowlist(false);
+            }
+        };
+
+        loadAllowlist();
+    }, [tokenMint]);
 
     const mintTokens = async () => {
         if (!tokenMint || !recipient || !amount) {
@@ -158,32 +190,90 @@ export default function MintTokens() {
                 </Card>
 
                 <Card>
-                    <Text style={styles.sectionTitle}>Minting Details</Text>
-                    <Input
-                        label="Recipient Wallet Address"
-                        value={recipient}
-                        onChangeText={setRecipient}
-                        placeholder="Enter recipient wallet address"
-                    />
-                    <Input
-                        label="Amount (tokens)"
-                        value={amount}
-                        onChangeText={setAmount}
-                        placeholder="e.g., 1000"
-                        keyboardType="numeric"
-                    />
-                    <View style={styles.infoBox}>
-                        <Text style={styles.infoText}>
-                            ⚠️ The recipient wallet must be on the allowlist before minting.
-                        </Text>
-                    </View>
-                    <Button
-                        title="Mint Tokens"
-                        onPress={mintTokens}
-                        loading={loading}
-                        variant="success"
-                    />
+                    <Text style={styles.sectionTitle}>Select Recipient</Text>
+                    {!tokenMint ? (
+                        <View style={styles.warningBox}>
+                            <Text style={styles.warningText}>
+                                ⚠️ Please select a token above first
+                            </Text>
+                        </View>
+                    ) : loadingAllowlist ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="small" color={theme.colors.primary.default} />
+                            <Text style={styles.loadingText}>Loading approved wallets...</Text>
+                        </View>
+                    ) : allowlist.length === 0 ? (
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyStateText}>
+                                No approved wallets found. Add wallets to the allowlist first.
+                            </Text>
+                        </View>
+                    ) : (
+                        <>
+                            <Text style={styles.helpText}>
+                                Select a recipient from the approved wallets:
+                            </Text>
+                            <FlatList
+                                data={allowlist}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.walletOption,
+                                            recipient === item.wallet_address && styles.walletOptionSelected,
+                                        ]}
+                                        onPress={() => setRecipient(item.wallet_address)}
+                                    >
+                                        <View style={styles.walletInfo}>
+                                            <WalletAddress address={item.wallet_address} />
+                                            <Badge variant="success">Approved</Badge>
+                                        </View>
+                                        {recipient === item.wallet_address && (
+                                            <Text style={styles.selectedCheckmark}>✓</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                )}
+                                keyExtractor={(item) => item.wallet_address}
+                                scrollEnabled={false}
+                                style={styles.walletList}
+                            />
+                            <Text style={styles.orText}>OR</Text>
+                            <Input
+                                label="Manual Entry (if not in list)"
+                                value={recipient}
+                                onChangeText={setRecipient}
+                                placeholder="Enter recipient wallet address"
+                            />
+                        </>
+                    )}
                 </Card>
+
+                {tokenMint && recipient && (
+                    <Card>
+                        <Text style={styles.sectionTitle}>Minting Details</Text>
+                        <View style={styles.recipientSummary}>
+                            <Text style={styles.recipientLabel}>Selected Recipient:</Text>
+                            <WalletAddress address={recipient} />
+                        </View>
+                        <Input
+                            label="Amount (tokens)"
+                            value={amount}
+                            onChangeText={setAmount}
+                            placeholder="e.g., 1000"
+                            keyboardType="numeric"
+                        />
+                        <View style={styles.infoBox}>
+                            <Text style={styles.infoText}>
+                                ⚠️ The recipient wallet must be on the allowlist before minting.
+                            </Text>
+                        </View>
+                        <Button
+                            title="Mint Tokens"
+                            onPress={mintTokens}
+                            loading={loading}
+                            variant="success"
+                        />
+                    </Card>
+                )}
 
                 <Card>
                     <Text style={styles.sectionTitle}>How to Mint Tokens</Text>
@@ -322,6 +412,74 @@ const styles = StyleSheet.create({
         fontSize: theme.typography.fontSize.sm,
         fontFamily: 'monospace',
         color: theme.colors.text.primary,
+    },
+    warningBox: {
+        padding: theme.spacing.md,
+        backgroundColor: '#FFF3CD',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#FFC107',
+    },
+    warningText: {
+        fontSize: theme.typography.fontSize.base,
+        color: '#856404',
+        textAlign: 'center',
+    },
+    helpText: {
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.text.secondary,
+        marginBottom: theme.spacing.md,
+    },
+    walletList: {
+        marginBottom: theme.spacing.md,
+    },
+    walletOption: {
+        backgroundColor: theme.colors.background.secondary,
+        borderWidth: 2,
+        borderColor: theme.colors.border.default,
+        borderRadius: 8,
+        padding: theme.spacing.md,
+        marginBottom: theme.spacing.sm,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    walletOptionSelected: {
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        borderColor: theme.colors.success.default,
+    },
+    walletInfo: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: theme.spacing.sm,
+    },
+    selectedCheckmark: {
+        fontSize: 24,
+        color: theme.colors.success.default,
+        fontWeight: 'bold',
+        marginLeft: theme.spacing.sm,
+    },
+    orText: {
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.text.secondary,
+        textAlign: 'center',
+        marginVertical: theme.spacing.md,
+        fontWeight: theme.typography.fontWeight.semibold,
+    },
+    recipientSummary: {
+        backgroundColor: theme.colors.background.secondary,
+        borderWidth: 1,
+        borderColor: theme.colors.border.default,
+        borderRadius: 8,
+        padding: theme.spacing.md,
+        marginBottom: theme.spacing.md,
+    },
+    recipientLabel: {
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.text.secondary,
+        marginBottom: theme.spacing.xs,
+        fontWeight: theme.typography.fontWeight.medium,
     },
 });
 

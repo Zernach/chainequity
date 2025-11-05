@@ -7,7 +7,53 @@ This document tracks the progress of implementing the ChainEquity tokenized secu
 **Current Status:** Phase 1, 2 & 3 Complete ✅ | **Backend Migrated to TypeScript** ✅ | **Home Screen Refactored** ✅ | **WalletConnect Integration** ✅ | **WebSocket Unified** ✅ | **All Linter Errors Fixed** ✅ | **Network Switcher** ✅ | **Allowlist UX Improved** ✅ | **Cross-Platform Modals** ✅ | **Token Holdings & UX** ✅  
 **Next Phase:** Corporate Actions System
 
-## 🎉 Latest Update: Fixed RLS Issue - Tokens Now Appear After Initialization (Nov 5, 2025)
+## 🎉 Latest Update: Mint Tokens Screen - Recipient Selection from Allowlist (Nov 5, 2025)
+
+Enhanced the Mint Tokens screen to allow users to select recipients from the pre-approved allowlist, improving UX and reducing errors.
+
+### Changes Made
+
+**File: `/frontend/app/admin/mint.tsx`**
+
+1. **Added Allowlist Loading:**
+   - Automatically loads approved wallets when a token is selected
+   - Filters to show only wallets with `approved` status
+   - Loading states and empty states handled gracefully
+
+2. **Recipient Selection UI:**
+   - Visual list of all approved wallets with selection capability
+   - Each wallet option shows:
+     - Wallet address (with `WalletAddress` component for proper formatting)
+     - "Approved" badge
+     - Checkmark (✓) when selected
+   - Selected wallet is highlighted with green accent color
+   - Touch/click to select recipient from the list
+
+3. **Fallback Manual Entry:**
+   - "OR" separator between list and manual entry
+   - Manual input field still available if needed
+   - Allows entering addresses not in the displayed list
+
+4. **Improved UX Flow:**
+   - Token selection → Auto-loads allowlist → Select recipient → Enter amount → Mint
+   - Clear visual feedback at each step
+   - Warning messages when token not selected or no approved wallets exist
+   - Minting details card only appears when both token and recipient are selected
+
+5. **Added Type Safety:**
+   - Imported `AllowlistEntry` type from `services/types`
+   - Proper TypeScript typing for allowlist state
+
+### User Experience Benefits
+
+- **Reduced Errors:** Users can't accidentally enter unapproved wallet addresses
+- **Faster Workflow:** No need to copy/paste wallet addresses from allowlist screen
+- **Visual Confirmation:** See all approved wallets at a glance before minting
+- **Flexibility:** Manual entry still available as fallback option
+
+---
+
+## Previous Update: Fixed RLS Issue - Tokens Now Appear After Initialization (Nov 5, 2025)
 
 Fixed critical Row Level Security (RLS) bug where initialized tokens weren't appearing in the securities list or allowlist due to database permission mismatch.
 
