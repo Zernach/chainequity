@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Alert } from 'react-native';
 
 const MAX_MESSAGES = 10;
 const RECONNECT_DELAY = 3000;
@@ -76,7 +75,7 @@ export function useWebSocketConnection() {
             ws.current.send(JSON.stringify(message));
             return true;
         } else {
-            Alert.alert('Error', 'WebSocket not connected');
+            console.error('[WebSocket] Cannot send message: not connected');
             return false;
         }
     }, []);

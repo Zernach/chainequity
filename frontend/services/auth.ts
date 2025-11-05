@@ -57,14 +57,9 @@ class AuthService {
         return this.authentication.getAccessToken();
     }
 
-    // ==================== Email/Password Authentication ====================
-    async signUp(data: SignupRequest): Promise<AuthResponse> {
-        return this.authentication.signUp(data);
-    }
-
-    async signIn(data: LoginRequest): Promise<AuthResponse> {
-        return this.authentication.signIn(data);
-    }
+    // ==================== Email/Password Authentication (DEPRECATED) ====================
+    // Note: These methods are deprecated and will return errors
+    // Use walletLogin() instead for authentication
 
     async signOut(): Promise<{ success: boolean; error?: string }> {
         return this.authentication.signOut();

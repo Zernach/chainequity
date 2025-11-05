@@ -123,6 +123,8 @@ export interface TransferHistoryResponse {
 export interface StockSplitRequest {
     token_mint: string;
     split_ratio: number;
+    new_symbol: string;
+    new_name: string;
 }
 
 export interface StockSplitResponse {
@@ -130,6 +132,7 @@ export interface StockSplitResponse {
     old_mint?: string;
     new_mint?: string;
     signature?: string;
+    holders_transitioned?: number;
     error?: string;
 }
 
@@ -220,18 +223,8 @@ export interface CapTableUpdatedEvent extends WebSocketEvent {
     };
 }
 
-// Authentication request/response types
-export interface SignupRequest {
-    email: string;
-    password: string;
-    name: string;
-    role?: UserRole;
-}
-
-export interface LoginRequest {
-    email: string;
-    password: string;
-}
+// Authentication request/response types (wallet-only)
+// Note: SignupRequest and LoginRequest are deprecated - use WalletLoginRequest instead
 
 export interface LinkWalletRequest {
     wallet_address: string;

@@ -4,10 +4,664 @@
 
 This document tracks the progress of implementing the ChainEquity tokenized security platform.
 
-**Current Status:** Phase 1, 2 & 3 Complete ✅ | **Backend Migrated to TypeScript** ✅ | **Home Screen Refactored** ✅ | **WalletConnect Integration** ✅ | **WebSocket Unified** ✅  
+**Current Status:** Phase 1, 2 & 3 Complete ✅ | **Backend Migrated to TypeScript** ✅ | **Home Screen Refactored** ✅ | **WalletConnect Integration** ✅ | **WebSocket Unified** ✅ | **All Linter Errors Fixed** ✅ | **Network Switcher** ✅ | **Allowlist UX Improved** ✅ | **Cross-Platform Modals** ✅ | **Token Holdings & UX** ✅  
 **Next Phase:** Corporate Actions System
 
-## 🎉 Latest Update: WebSocket Unified to Single Port (Nov 4, 2025)
+## 🎉 Latest Update: Fixed RLS Issue - Tokens Now Appear After Initialization (Nov 5, 2025)
+
+Fixed critical Row Level Security (RLS) bug where initialized tokens weren't appearing in the securities list or allowlist due to database permission mismatch.
+
+### The Issue
+
+After initializing tokens like `GAUNT11`, they would successfully save to the database but wouldn't appear in:
+- Securities list on mint screen (empty array)
+- Allowlist dropdown (empty array)
+- Any read queries from the frontend
+
+### Root Cause
+
+**Database Permission Mismatch:**
+- **Write operations** (token init, minting) used `supabaseAdmin` (service role) → bypasses RLS ✅
+- **Read operations** (get securities, get holdings) used `supabase` (regular client) → enforces RLS ❌
+
+Since the `securities` and related tables have RLS policies enabled, the regular client couldn't see data written by the admin client.
+
+### The Fix
+
+Changed all read operations in `securities.handlers.ts` to use `supabaseAdmin` instead of `supabase`:
+- `getAllSecurities()` - now uses `supabaseAdmin`
+- `getSecurityByMint()` - now uses `supabaseAdmin`  
+- `getAllowlist()` - now uses `supabaseAdmin`
+- `checkAllowlistStatus()` - now uses `supabaseAdmin`
+- `getWalletHoldings()` - now uses `supabaseAdmin`
+
+Now all operations consistently bypass RLS using the service role client.
+
+### Testing
+
+1. Restart backend: `cd backend && yarn dev`
+2. Initialize a new token (e.g., `TEST123`)
+3. Navigate to mint screen → token should appear in the horizontal scroll list
+4. Navigate to allowlist screen → token should appear in dropdown
+5. After minting tokens → holdings should appear on home screen
+
+---
+
+## Previous Update: Token Holdings & Improved Post-Initialization UX (Nov 5, 2025)
+
+Implemented proper backend endpoints and improved the token workflow UX.
+
+### Changes Made
+
+**🔧 Backend Holdings Endpoint:**
+- Added `GET /holdings/:walletAddress` endpoint to fetch token holdings for a wallet
+- Created `getWalletHoldings` handler in `securities.handlers.ts`
+- Queries `token_balances` table joined with `securities` to return complete holding info
+- Returns mint address, symbol, name, balance, decimals, and ownership percentage
+- Properly handles empty results and database errors
+
+**✨ Frontend Holdings Hook:**
+- Implemented real API call in `useTokenHoldings` hook (was previously stubbed)
+- Fetches holdings from the new backend endpoint
+- Automatically refreshes every 30 seconds when enabled
+- Displays token holdings on the home screen with balance and ownership %
+
+**🎯 Securities Management:**
+- Created reusable `useSecurities` hook to fetch all initialized tokens
+- Added security selector to mint screen (no more manual mint address entry!)
+- Securities displayed as horizontal scrollable cards with symbol and name
+- Automatic refresh capability to see newly initialized tokens
+
+**🚀 Improved Post-Initialization Flow:**
+- Token initialization screen now shows success message with next steps
+- Added "Go to Allowlist" and "Go to Mint" buttons after successful initialization
+- Clear guidance on workflow: Initialize → Allowlist → Mint
+- Stores last initialized mint to provide context-aware navigation
+
+**💡 Key Insights:**
+- **Holdings vs Securities**: Holdings are tokens you own (require minting first), Securities are tokens that exist (just need initialization)
+- Initializing a token creates it in the `securities` table but doesn't create any balances
+- Balances are created when tokens are minted to wallets via `token_balances` table
+- The workflow is: Initialize Token → Approve Wallets → Mint Tokens → See Holdings
+
+### API
+
+```typescript
+// New backend endpoint
+GET /holdings/:walletAddress
+Response: {
+  success: boolean;
+  holdings: Array<{
+    mint: string;
+    symbol: string;
+    name: string;
+    balance: string;
+    decimals: number;
+    percentage?: number;
+  }>;
+  count: number;
+}
+
+// Frontend hook
+const { holdings, loading, error, refetch } = useTokenHoldings(walletAddress);
+
+// Securities hook
+const { securities, loading, error, refetch } = useSecurities();
+```
+
+### User Experience Flow
+
+1. **Initialize Token** → Creates security in database, shows success with next steps
+2. **Approve Wallets** → Add wallets to allowlist (can see all securities in dropdown)
+3. **Mint Tokens** → Select security from list, mint to approved wallet
+4. **View Holdings** → Token appears in home screen holdings with balance and ownership %
+
+## 🎉 Previous Update: Replaced Alert.alert with Cross-Platform Modals (Nov 5, 2025)
+
+Replaced all native `Alert.alert` calls with a custom modal system that works consistently across all platforms (web, iOS, Android).
+
+### Changes Made
+
+**🎯 New Modal System:**
+- Created `AlertModal` component with customizable types (success, error, warning, info, confirm)
+- Built `useAlertModal` hook for easy modal management
+- Provides convenience methods: `alert()`, `success()`, `error()`, `warning()`, `confirm()`
+- Supports custom button configurations
+- Beautiful, consistent design across all platforms
+
+**✨ Updated Components:**
+- All admin screens: allowlist, mint, transfers, cap-table, corporate-actions
+- Authentication screens: auth, link-wallet
+- Hooks: useWebSocketConnection, useUsers, useTokenMint
+- WalletAddress component (now shows inline feedback instead of alert)
+
+**🔄 Hook Refactoring:**
+- Refactored `useUsers` and `useTokenMint` to return error states instead of showing alerts
+- Removed Alert dependency from `useWebSocketConnection`
+- Better separation of concerns: hooks manage state, components handle UI
+
+**🎨 Features:**
+- Icon indicators for each alert type
+- Configurable buttons with different styles (default, cancel, destructive)
+- Auto-dismiss with optional callbacks
+- Non-blocking: users can still interact with the app
+- Accessible on all platforms including web
+
+### API
+
+```typescript
+const { alertState, hideAlert, alert, success, error, warning, confirm } = useAlertModal();
+
+// Show success message
+success('Success', 'Operation completed!');
+
+// Show error
+error('Error', 'Something went wrong');
+
+// Confirm action
+confirm('Delete Item', 'Are you sure?', async () => {
+  await deleteItem();
+});
+```
+
+## Previous Update: Fixed Allowlist Management UX (Nov 5, 2025)
+
+Fixed the "Security not found" error when adding wallets to allowlist by improving the UX with a securities dropdown selector.
+
+### Problem Fixed
+
+Users were encountering a "Security not found" error (404) when trying to approve wallets for allowlists. The issue was:
+- Users had to manually enter token mint addresses
+- No way to see which securities were available
+- Approving a wallet would fail if the security wasn't initialized in the database
+- Error messages were unclear about root cause
+
+### Solution Implemented
+
+**🎯 Securities Dropdown:**
+- Allowlist page now loads and displays all available securities on mount
+- Users select from a list instead of manually entering addresses
+- Each security shows: Symbol, Name, and Mint Address
+- Selected security is highlighted and displayed in detail
+- Allowlist automatically loads when security is selected
+
+**✨ Better Error Handling:**
+- Clear error messages when security not found
+- Guidance to initialize token first if needed
+- Helpful warnings when no security is selected
+- Empty state messages guide users through workflow
+
+**🔄 Auto-Loading:**
+- Securities load automatically on page mount
+- Allowlist loads automatically when security selected
+- Refresh buttons for both lists
+- Loading states throughout
+
+**🎨 Improved UI:**
+- Warning box if no security selected
+- Empty state when no securities exist
+- Selected security info panel
+- Consistent styling with rest of app
+
+### API Enhancements
+
+Added new methods to `TokenHandler`:
+```typescript
+async getAllSecurities(): Promise<{ success: boolean; securities: Security[]; count: number }>
+async getSecurityByMint(mintAddress: string): Promise<{ success: boolean; security: Security }>
+```
+
+### Files Modified
+
+**Frontend:**
+- `frontend/app/admin/allowlist.tsx` - Complete UX overhaul with securities selector
+- `frontend/services/handlers/token.handler.ts` - Added getAllSecurities() and getSecurityByMint()
+- `frontend/services/api.ts` - Exposed new security methods
+
+**Backend:** (No changes needed - endpoints already existed)
+- `GET /securities` - List all active securities
+- `GET /securities/:mintAddress` - Get specific security
+- `GET /allowlist/:mintAddress` - Get allowlist for security
+
+### User Flow
+
+1. User navigates to Allowlist Management
+2. Page loads all available securities automatically
+3. User selects a security from the list
+4. Allowlist for that security loads automatically
+5. User can now approve/revoke wallets for selected security
+6. Error messages guide user if issues occur
+
+### Technical Details
+
+**Security Interface:**
+```typescript
+interface Security {
+    id: string;
+    mint_address: string;
+    symbol: string;
+    name: string;
+    decimals: number;
+    total_supply: number;
+    current_supply: number;
+    program_id: string;
+    is_active: boolean;
+    created_at: string;
+}
+```
+
+**React Hooks:**
+- `useEffect` loads securities on mount
+- `useEffect` loads allowlist when security selected
+- Proper dependency arrays to avoid warnings
+- All async operations in effect callbacks
+
+---
+
+## Previous Update: Added Solana Network Switcher to Header (Nov 5, 2025)
+
+Added a network switcher dropdown in the header that allows users to select between different Solana environments (Devnet and Testnet).
+
+### Features Implemented
+
+**🌐 Network Selection UI:**
+- Replaced static "Connected/Disconnected" text with interactive dropdown
+- Shows current network: Devnet or Testnet
+- Dropdown displays both networks with checkmark next to active one
+- Active network highlighted in primary color with bold text
+- Clean caret (▼) indicator for dropdown affordance
+
+**💾 Network Persistence:**
+- Created `NetworkContext` to manage network state globally
+- Network preference saved to AsyncStorage
+- User's network selection persists across app restarts
+- Defaults to 'devnet' on first launch
+
+**🎯 Clean Architecture:**
+- `NetworkContext` provides `useNetwork()` hook
+- Network state accessible throughout app via hook
+- Added to root `_layout.tsx` wrapping `AuthProvider`
+- Exported from `hooks/index.ts` for easy imports
+
+**🎨 UI/UX Improvements:**
+- Consistent styling with existing wallet dropdown
+- Modal overlay closes when clicking outside
+- Smooth fade animation on dropdown open/close
+- Accessible labels for screen readers
+- Status dot remains visible showing WebSocket connection state
+
+### Files Created/Modified
+
+**New Files:**
+- `frontend/contexts/NetworkContext.tsx` - Network state management context with AsyncStorage persistence
+
+**Modified Files:**
+- `frontend/components/Header.tsx` - Added network dropdown UI with three network options
+- `frontend/app/_layout.tsx` - Wrapped app with NetworkProvider
+- `frontend/hooks/index.ts` - Exported useNetwork hook
+- `@docs/architecture.md` - Documented NetworkContext in architecture
+- `@docs/PROGRESS.md` - Added this update entry
+
+### Technical Implementation
+
+**Type Safety:**
+```typescript
+export type SolanaNetwork = 'devnet' | 'testnet';
+```
+
+**Context API:**
+```typescript
+interface NetworkContextType {
+    network: SolanaNetwork;
+    setNetwork: (network: SolanaNetwork) => Promise<void>;
+    isLoading: boolean;
+}
+```
+
+**Storage Key:**
+- Uses `@chainequity:solana_network` key in AsyncStorage
+- Validates saved value is valid network before applying
+
+### Usage
+
+Any component can now access and change the network:
+```typescript
+import { useNetwork } from '../hooks';
+
+const { network, setNetwork } = useNetwork();
+
+// Display current network
+console.log(network); // 'devnet' | 'testnet'
+
+// Switch networks
+await setNetwork('testnet');
+```
+
+### Next Steps
+
+The network context is now available globally, but **backend integration is still needed**:
+1. Update Solana connection to use selected network
+2. Pass network parameter to backend API calls
+3. Backend should initialize Connection with correct RPC endpoint
+4. WebSocket should reconnect when network changes
+
+For now, the UI is complete and network preference is persisted. The actual Solana operations will continue using the hardcoded network until backend integration is implemented.
+
+---
+
+## Previous Update: Fixed Allowlist Error - Security Not Found (Nov 5, 2025)
+
+Fixed critical bug where allowlist operations were failing with "Security not found" error. The issue was that token initialization was not storing the security in the database, causing all subsequent allowlist operations to fail.
+
+### Root Cause
+
+**🐛 The Problem:**
+- When initializing a token, the backend called the program client (simulation mode)
+- The program client returned a simulated signature and mint address
+- **BUT** the token was never stored in the `securities` table in the database
+- When trying to approve a wallet, the `approveWallet` endpoint would call `loadAllowlist()`
+- `loadAllowlist()` would query `/allowlist/{mintAddress}` 
+- The backend handler would lookup the security by mint_address
+- **FAIL:** Security not found in database → Error returned to frontend
+
+**💡 Why This Happened:**
+In production, the indexer listens to blockchain events and automatically stores securities in the database when it processes a `TokenInitialized` event. However, in simulation mode (development), there are no real blockchain events, so the indexer never runs and the security is never stored.
+
+### Solution Applied
+
+**✅ Fixed Backend Admin Handlers:**
+Updated all admin operation handlers to manually store/update database records in simulation mode:
+
+1. **`initializeToken()`** - Now stores security in `securities` table after program client call
+   - Stores: mint_address, symbol, name, decimals, total_supply, current_supply, program_id, is_active
+   - Returns security data in response
+
+2. **`approveWallet()`** - Now stores allowlist entry in `allowlist` table after program client call
+   - First checks if security exists (returns 404 if not found with helpful error)
+   - Uses upsert to create/update allowlist entry
+   - Stores: security_id, wallet_address, status='approved', approved_by, approved_at
+   - Returns allowlist entry in response
+
+3. **`revokeWallet()`** - Now updates allowlist entry in database after program client call
+   - First checks if security exists
+   - Updates status to 'revoked' and sets revoked_at timestamp
+
+4. **`mintTokens()`** - Now updates balances in database after program client call
+   - First checks if security exists
+   - Updates security's current_supply and total_supply
+   - Upserts token_balances entry for recipient wallet
+
+### Benefits
+
+**🎯 Development Experience:**
+- Token initialization now fully functional in simulation mode
+- Allowlist operations work immediately after token init
+- Minting updates balances visible in database
+- No need to run indexer or connect to real Solana network during development
+
+**🔄 Production Ready:**
+- All operations still call the program client (ready for real blockchain)
+- Database updates happen in both simulation and production
+- Comments clearly mark simulation-specific code
+- Easy to switch from simulation to production mode
+
+**🛡️ Better Error Handling:**
+- Meaningful error messages ("Security not found. Please initialize the token first.")
+- Database errors don't crash the server
+- Proper HTTP status codes (404 for not found, 500 for server errors)
+
+### Files Modified
+
+- `backend/src/handlers/admin.handlers.ts` - Added database operations to all admin handlers
+  - Added `import { supabase } from '../db'`
+  - Updated `initializeToken()` to store security
+  - Updated `approveWallet()` to store allowlist entry with security lookup
+  - Updated `revokeWallet()` to update allowlist entry with security lookup
+  - Updated `mintTokens()` to update supply and balances with security lookup
+
+### Technical Details
+
+**Database Schema Used:**
+- `securities` table: Stores token mint metadata
+- `allowlist` table: Stores wallet approval status (foreign key to securities.id)
+- `token_balances` table: Stores holder balances (foreign key to securities.id)
+
+**Upsert Strategy:**
+- `allowlist` entries use `onConflict: 'security_id,wallet_address'` to prevent duplicates
+- `token_balances` entries use `onConflict: 'security_id,wallet_address'` to update existing balances
+
+**Error Handling:**
+- Security lookup returns 404 if mint_address not found
+- Database errors log to console but don't expose internal details to frontend
+- Helpful error messages guide users to correct workflow (initialize token first)
+
+---
+
+## Previous Update: Fixed Token Initialization Button (Web Alert.alert Issue) + Holdings Display (Nov 4, 2025)
+
+Fixed the "Initialize Token" button not working due to web platform Alert.alert limitations, added comprehensive logging, AND implemented token holdings display on the home screen!
+
+### Part 1: Fixed Web Platform Alert.alert Issue
+
+**🐛 Root Cause:**
+- React Native's `Alert.alert()` doesn't work properly on web
+- On web, it falls back to browser `alert()` which doesn't support buttons or callbacks
+- Confirmation dialog was showing but buttons did nothing (no logs after "showing confirmation dialog")
+
+**✅ Solution:**
+- Replaced `Alert.alert()` with custom Modal component for confirmations
+- Used browser `alert()` for simple error/success messages (works fine for single-button alerts)
+- Added extensive logging to track button clicks and flow
+
+**🎯 Changes:**
+- Split validation into separate `handleValidation()` function with detailed logging
+- Created `showConfirmation()` to show modal instead of Alert.alert
+- Added `handleCancel()` and `handleConfirm()` with logging
+- Modal now properly shows/hides with state management
+- All confirmation flows now log to console for debugging
+
+### Part 2: Comprehensive Debug Logging
+
+**🔍 Logging Added to Full Request/Response Chain:**
+
+1. **Frontend Token Init Screen** (`frontend/app/admin/token-init.tsx`)
+   - Logs validation steps and parameters
+   - Logs user confirmation
+   - Logs API call initiation and response
+   - Logs success/failure with detailed error information
+
+2. **Frontend Token Handler** (`frontend/services/handlers/token.handler.ts`)
+   - Logs method parameters
+   - Logs whether access token is available
+   - Logs API response
+
+3. **Frontend Base Client** (`frontend/services/handlers/base.ts`)
+   - Logs HTTP method and URL for every request
+   - Logs request headers (including Authorization)
+   - Logs request body
+   - Logs response status and data
+   - Logs errors with full details
+
+4. **Backend Admin Handler** (`backend/src/handlers/admin.handlers.ts`)
+   - Logs when endpoint is called
+   - Logs request body and authenticated user
+   - Logs parameter extraction
+   - Logs admin keypair loading
+   - Logs mint generation
+   - Logs client method call with all parameters
+   - Logs response before sending
+   - Logs errors with stack traces
+
+5. **Backend Program Client** (`backend/src/program-client.ts`)
+   - Logs all input parameters
+   - Logs PDA derivation
+   - Logs signature generation
+   - Logs final result before returning
+
+**📝 Log Format:**
+- All logs use consistent prefixes: `[ComponentName]` for easy filtering
+- Examples: `[TokenInit]`, `[TokenHandler]`, `[BaseClient]`, `[AdminHandler]`, `[ProgramClient]`
+- Makes it easy to trace a request from frontend button click to backend response
+
+**🎯 Benefits:**
+- Can now trace exactly where the flow breaks if token initialization fails
+- Can verify authentication tokens are being passed correctly
+- Can see all parameters at each layer of the stack
+- Can identify network issues vs. backend issues vs. validation issues
+
+### Files Modified
+
+- `frontend/app/admin/token-init.tsx` - Added 10+ log statements
+- `frontend/services/handlers/token.handler.ts` - Added parameter and response logging
+- `frontend/services/handlers/base.ts` - Added comprehensive HTTP request/response logging
+- `backend/src/handlers/admin.handlers.ts` - Added detailed flow logging
+- `backend/src/program-client.ts` - Added parameter and result logging
+
+### Part 3: Home Screen Token Holdings Display
+
+**🎯 New Features:**
+
+1. **Token Holdings Hook** (`frontend/hooks/useTokenHoldings.ts`)
+   - Fetches user's token balances from backend (ready for backend integration)
+   - Auto-refreshes every 30 seconds
+   - Supports manual refresh
+   - Handles loading and error states
+   - Returns holdings with symbol, name, balance, and ownership percentage
+
+2. **Home Screen Enhanced** (`frontend/app/index.tsx`)
+   - Added "My Token Holdings" card below user profile
+   - Shows all tokens user owns with:
+     - Token symbol and name
+     - Balance (formatted with commas)
+     - Ownership percentage (when available)
+   - Empty states:
+     - If no wallet linked: Shows "Link Wallet" button
+     - If no holdings: Shows helpful message
+     - For admins: Hints to initialize and mint tokens
+   - Refresh button to manually reload holdings
+   - Beautiful card-based UI matching existing design
+
+**📱 User Experience:**
+
+After initializing a token and minting to their wallet, users will now see:
+- Token appears in "My Token Holdings" section on home screen
+- Balance displayed prominently
+- Ownership percentage (e.g., "100.00% ownership" if they own all tokens)
+- Can refresh to see updated balances after transfers/mints
+
+**🔧 Technical Details:**
+
+- Holdings hook is prepared for backend integration
+- Currently returns empty array (simulated) until backend endpoint is ready
+- Backend needs to implement: `GET /user/{wallet}/holdings` endpoint
+- Should query `token_balances` table and calculate percentages from `current_supply`
+
+### Files Modified
+
+**Part 1 (Alert.alert Fix):**
+- `frontend/app/admin/token-init.tsx` - Replaced Alert.alert with Modal, added extensive logging throughout flow
+
+**Part 2 (Logging):**
+- `frontend/app/admin/token-init.tsx` - Added 15+ strategic log statements
+- `frontend/services/handlers/token.handler.ts` - Added parameter and response logging
+- `frontend/services/handlers/base.ts` - Added comprehensive HTTP request/response logging
+- `backend/src/handlers/admin.handlers.ts` - Added detailed flow logging
+- `backend/src/program-client.ts` - Added parameter and result logging
+
+**Part 3 (Holdings Display):**
+- `frontend/hooks/useTokenHoldings.ts` - NEW: Token holdings management hook
+- `frontend/hooks/index.ts` - Exported new hook
+- `frontend/app/index.tsx` - Added holdings card with rich UI
+
+---
+
+## Previous Update: Frontend/Backend Parameter Name Mismatch Fixed (Nov 4, 2025)
+
+Fixed critical parameter naming inconsistency between frontend and backend!
+
+### Bugs Fixed
+
+**🐛 Issue 1: Parameter Name Mismatch**
+- **Error:** `tokenMint and walletAddress are required` even though values were provided
+- **Root Cause:** Frontend sends snake_case (`token_mint`, `wallet_address`) but backend expected camelCase (`tokenMint`, `walletAddress`)
+- **Impact:** All admin operations (approve wallet, revoke wallet, mint tokens, corporate actions) were failing
+
+**✅ Solution Applied:**
+- Updated backend admin handlers to use snake_case parameter names (matching frontend)
+- Changed `tokenMint` → `token_mint`
+- Changed `walletAddress` → `wallet_address`
+- Changed `splitRatio` → `split_ratio`
+- Changed `newSymbol` → `new_symbol`
+- Changed `newName` → `new_name`
+
+**🐛 Issue 2: Missing Authorization Headers**
+- **Error:** `Missing or invalid authorization header` when calling `/admin/allowlist/approve`
+- **Root Cause:** API handlers were not passing `includeAuth: true` to HTTP requests
+- **Impact:** All admin endpoints (allowlist, minting, token init, corporate actions) were failing with auth errors
+
+**✅ Solution Applied:**
+1. Updated all handler classes to pass `includeAuth: true` for authenticated endpoints
+2. Added `setAccessToken()` method to `APIClient` to propagate tokens to all handlers
+3. Updated `AuthContext` to call both `authService.setAccessToken()` and `api.setAccessToken()`
+4. Token is now properly set on session store, session restore, and session clear
+
+### Files Modified
+
+**Backend (Parameter Names Fixed):**
+- `backend/src/handlers/admin.handlers.ts` - All admin endpoints now use snake_case parameters
+
+**Frontend (Authentication Added):**
+- `frontend/services/handlers/allowlist.handler.ts` - Approve/revoke wallet, get allowlist
+- `frontend/services/handlers/token.handler.ts` - Initialize token, get info, get balance
+- `frontend/services/handlers/minting.handler.ts` - Mint tokens
+- `frontend/services/handlers/corporate-actions.handler.ts` - Stock splits, symbol changes
+- `frontend/services/handlers/users.handler.ts` - Get users, create user
+- `frontend/services/handlers/cap-table.handler.ts` - Get cap table, export
+- `frontend/services/handlers/transfers.handler.ts` - Get transfer history
+
+**Core Files:**
+- `frontend/services/api.ts` - Added `setAccessToken()` and `getAccessToken()` methods
+- `frontend/contexts/AuthContext.tsx` - Propagates tokens to both auth and API services
+
+**Result:**
+- ✅ Backend now accepts snake_case parameters matching frontend convention
+- ✅ All admin endpoints include JWT tokens in Authorization headers
+- ✅ Wallet approvals, token minting, and other admin operations work correctly
+- ✅ Authentication state properly synchronized across all API handlers
+
+---
+
+## 🎉 Previous Update: TypeScript & ESLint Errors Fixed (Nov 4, 2025)
+
+Successfully fixed all TypeScript and ESLint errors across frontend and backend!
+
+### Fixes Applied
+
+**🐛 Fixed `frontend/app/admin/mint.tsx`:**
+- **Issue 1:** `amount` parameter was being passed as number instead of string
+  - Fixed by converting to string: `.toString()` after calculation
+- **Issue 2:** Incorrect API parameter names (`tokenMint`, `recipient`)
+  - Fixed to match API types: `token_mint`, `wallet_address`
+- **Issue 3:** `theme.colors.warning` was being used as string instead of object
+  - Fixed by using `theme.colors.warning.default` and `theme.colors.warning.bg`
+
+**🔧 Contracts TypeScript Configuration:**
+- The `contracts/gated-token/tsconfig.json` requires `@types/mocha` and `@types/chai` packages
+- These are defined in `package.json` but need to be installed
+- To resolve: Run `cd contracts/gated-token && yarn install`
+
+**✅ Verification:**
+- Frontend: Zero linter errors ✅
+- Backend: Zero linter errors ✅
+- Contracts: Requires dependency installation (see above)
+
+### Files Modified
+- `frontend/app/admin/mint.tsx` - Fixed type errors and API parameter names
+- Contracts will need: `cd contracts/gated-token && yarn install`
+
+---
+
+## 🎉 Previous Update: WebSocket Unified to Single Port (Nov 4, 2025)
 
 Successfully consolidated HTTP and WebSocket into a single server port using HTTP upgrade!
 
@@ -292,8 +946,6 @@ See `@docs/authentication-guide.md` for complete setup and troubleshooting.
 - All hooks exported via `hooks/index.ts`
 
 **New UI Components (`frontend/components/`)**
-- ✅ `WebSocketStatus.tsx` - Display connection status with test button
-- ✅ `WebSocketMessages.tsx` - Display recent WebSocket messages
 - ✅ `UserManagement.tsx` - User creation and fetch UI
 - ✅ `UsersList.tsx` - Display list of users with details
 - ✅ `TokenMinting.tsx` - Token minting UI with results display

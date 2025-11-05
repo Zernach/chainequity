@@ -40,7 +40,6 @@ export function UserManagement({ onCreateUser, onFetchUsers, loading }: UserMana
 
 const styles = StyleSheet.create({
     section: {
-        marginVertical: 12,
         padding: 16,
         backgroundColor: theme.colors.background.secondary,
         borderRadius: 8,

@@ -17,61 +17,8 @@ const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export class AuthenticationHandler extends BaseClient {
-    /**
-     * Sign up with email and password
-     */
-    async signUp(data: SignupRequest): Promise<AuthResponse> {
-        try {
-            const response = await this.post<AuthResponse>('/auth/signup', data);
-
-            if (!response.success) {
-                throw new Error(response.error || 'Signup failed');
-            }
-
-            // After signup, sign in to get a session
-            if (response.user) {
-                const loginResult = await this.signIn({
-                    email: data.email,
-                    password: data.password,
-                });
-                return loginResult;
-            }
-
-            return response;
-        } catch (error) {
-            console.error('[AuthenticationHandler] Signup error:', error);
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Signup failed',
-            };
-        }
-    }
-
-    /**
-     * Sign in with email and password
-     */
-    async signIn(data: LoginRequest): Promise<AuthResponse> {
-        try {
-            const response = await this.post<AuthResponse>('/auth/login', data);
-
-            if (!response.success) {
-                throw new Error(response.error || 'Login failed');
-            }
-
-            // Store access token
-            if (response.session?.access_token) {
-                this.setAccessToken(response.session.access_token);
-            }
-
-            return response;
-        } catch (error) {
-            console.error('[AuthenticationHandler] Login error:', error);
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Login failed',
-            };
-        }
-    }
+    // Note: Email/password authentication has been removed
+    // Use WalletHandler for authentication instead
 
     /**
      * Sign out

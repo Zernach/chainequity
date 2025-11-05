@@ -9,15 +9,15 @@ import {
     Text,
     StyleSheet,
     ScrollView,
-    Alert,
     TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../hooks/useAuth';
 import { useWalletConnection, formatWalletAddress } from '../hooks/useWalletConnection';
 import { requestNonce, generateSignatureMessage } from '../services/auth';
-import { Button, LoadingSpinner, Card, Badge, Input } from '../components';
+import { Button, LoadingSpinner, Card, Badge, Input, AlertModal } from '../components';
 import { theme } from '../constants';
+import { useAlertModal } from '../hooks';
 
 export default function LinkWalletScreen() {
     const router = useRouter();
@@ -37,6 +37,7 @@ export default function LinkWalletScreen() {
     const [linking, setLinking] = useState(false);
     const [customAddress, setCustomAddress] = useState('');
     const [nonceInfo, setNonceInfo] = useState<{ nonce: string; expiresIn: number } | null>(null);
+    const { alertState, hideAlert, error, success } = useAlertModal();
 
     const loading = authLoading || walletConnecting || linking;
     const hasWallet = user?.wallet_address && user.wallet_verified;
@@ -45,7 +46,7 @@ export default function LinkWalletScreen() {
     // Handle wallet linking with nonce
     const handleLinkWallet = async () => {
         if (!walletConnected || !walletAddress) {
-            Alert.alert('Error', 'Please connect your wallet first');
+            error('Error', 'Please connect your wallet first');
             return;
         }
 
@@ -80,22 +81,14 @@ export default function LinkWalletScreen() {
             console.log('[LinkWallet] Wallet linked successfully!');
             console.log('[LinkWallet] Updated user:', user);
 
-            Alert.alert(
-                'Success',
-                'Your wallet has been linked successfully!',
-                [
-                    {
-                        text: 'OK',
-                        onPress: () => router.back(),
-                    },
-                ]
-            );
-        } catch (error) {
+            success('Success', 'Your wallet has been linked successfully!');
+            setTimeout(() => router.back(), 1500);
+        } catch (err) {
             setNonceInfo(null);
-            console.error('[LinkWallet] Error:', error);
-            Alert.alert(
+            console.error('[LinkWallet] Error:', err);
+            error(
                 'Link Wallet Error',
-                error instanceof Error ? error.message : 'Failed to link wallet'
+                err instanceof Error ? err.message : 'Failed to link wallet'
             );
         } finally {
             setLinking(false);
@@ -105,21 +98,21 @@ export default function LinkWalletScreen() {
     // Handle custom address connection (mock wallet only)
     const handleConnectWithAddress = async () => {
         if (!customAddress.trim()) {
-            Alert.alert('Error', 'Please enter a wallet address');
+            error('Error', 'Please enter a wallet address');
             return;
         }
 
         if (!connectWithCustomAddress) {
-            Alert.alert('Error', 'Custom address connection is only available in development mode');
+            error('Error', 'Custom address connection is only available in development mode');
             return;
         }
 
         try {
             await connectWithCustomAddress(customAddress.trim());
-        } catch (error) {
-            Alert.alert(
+        } catch (err) {
+            error(
                 'Connection Error',
-                error instanceof Error ? error.message : 'Failed to connect wallet'
+                err instanceof Error ? err.message : 'Failed to connect wallet'
             );
         }
     };
@@ -151,227 +144,232 @@ export default function LinkWalletScreen() {
     }
 
     return (
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Link Your Wallet</Text>
-                <Text style={styles.subtitle}>
-                    Connect your Solana wallet to enable token transactions
-                </Text>
-            </View>
-
-            {/* Current User Info */}
-            <Card style={styles.card}>
-                <Text style={styles.cardTitle}>Account Information</Text>
-
-                <View style={styles.infoRow}>
-                    <Text style={styles.label}>Name:</Text>
-                    <Text style={styles.value}>{user.name}</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                    <Text style={styles.label}>Email:</Text>
-                    <Text style={styles.value}>{user.email || 'N/A'}</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                    <Text style={styles.label}>Role:</Text>
-                    <Badge
-                        label={user.role}
-                        variant={user.role === 'admin' ? 'success' : 'default'}
-                    />
-                </View>
-
-                {hasWallet && (
-                    <View style={styles.infoRow}>
-                        <Text style={styles.label}>Current Wallet:</Text>
-                        <View style={styles.walletBadge}>
-                            <Text style={styles.walletText}>
-                                {formatWalletAddress(user.wallet_address || '')}
-                            </Text>
-                            {user.wallet_verified && (
-                                <Badge
-                                    label="Verified"
-                                    variant="success"
-                                    style={styles.verifiedBadge}
-                                />
-                            )}
-                        </View>
-                    </View>
-                )}
-            </Card>
-
-            {/* Wallet Connection */}
-            {hasWallet ? (
-                <Card style={styles.card}>
-                    <Text style={styles.cardTitle}>Update Wallet</Text>
-                    <Text style={styles.description}>
-                        You already have a wallet linked to your account. You can update it by
-                        connecting a new wallet and signing a verification message.
-                    </Text>
-
-                    {walletConnected && walletAddress && (
-                        <View style={styles.connectedWallet}>
-                            <Text style={styles.connectedLabel}>
-                                New Wallet Connected:
-                            </Text>
-                            <Text style={styles.connectedAddress}>
-                                {formatWalletAddress(walletAddress)}
-                            </Text>
-                        </View>
-                    )}
-
-                    {!walletConnected ? (
-                        <Button
-                            title="Connect New Wallet"
-                            onPress={connectWallet}
-                            loading={loading}
-                            style={styles.button}
-                        />
-                    ) : (
-                        <>
-                            <Button
-                                title="Update Wallet"
-                                onPress={handleLinkWallet}
-                                loading={loading}
-                                style={styles.button}
-                            />
-                            <Button
-                                title="Disconnect"
-                                onPress={disconnectWallet}
-                                variant="secondary"
-                                style={styles.button}
-                            />
-                        </>
-                    )}
-                </Card>
-            ) : (
-                <Card style={styles.card}>
-                    <Text style={styles.cardTitle}>Connect Your Wallet</Text>
-                    <Text style={styles.description}>
-                        Link your Solana wallet to your account to enable token transactions,
-                        transfers, and other on-chain operations.
-                    </Text>
-
-                    <View style={styles.steps}>
-                        <View style={styles.step}>
-                            <View style={styles.stepNumber}>
-                                <Text style={styles.stepNumberText}>1</Text>
-                            </View>
-                            <Text style={styles.stepText}>
-                                Connect your Solana wallet (Phantom, Solflare, etc.)
-                            </Text>
-                        </View>
-
-                        <View style={styles.step}>
-                            <View style={styles.stepNumber}>
-                                <Text style={styles.stepNumberText}>2</Text>
-                            </View>
-                            <Text style={styles.stepText}>
-                                Sign a verification message to prove ownership
-                            </Text>
-                        </View>
-
-                        <View style={styles.step}>
-                            <View style={styles.stepNumber}>
-                                <Text style={styles.stepNumberText}>3</Text>
-                            </View>
-                            <Text style={styles.stepText}>
-                                Your wallet will be securely linked to your account
-                            </Text>
-                        </View>
-                    </View>
-
-                    {walletConnected && walletAddress && (
-                        <View style={styles.connectedWallet}>
-                            <Text style={styles.connectedLabel}>Wallet Connected:</Text>
-                            <Text style={styles.connectedAddress}>
-                                {formatWalletAddress(walletAddress)}
-                            </Text>
-                        </View>
-                    )}
-
-                    {/* Show wallet type indicator */}
-                    {walletType && (
-                        <View style={styles.walletTypeIndicator}>
-                            <Text style={styles.walletTypeText}>
-                                Mode: {walletType === 'mock' ? 'Development (Mock)' : walletType === 'web' ? 'Web Wallet' : 'WalletConnect'}
-                            </Text>
-                        </View>
-                    )}
-
-                    {/* Mock wallet custom address input */}
-                    {isMockWallet && !walletConnected && (
-                        <View style={styles.customAddressSection}>
-                            <Text style={styles.customAddressLabel}>
-                                Enter Custom Wallet Address (Dev Mode):
-                            </Text>
-                            <Input
-                                value={customAddress}
-                                onChangeText={setCustomAddress}
-                                placeholder="Enter Solana wallet address"
-                                style={styles.customAddressInput}
-                            />
-                            <Button
-                                title="Connect with Custom Address"
-                                onPress={handleConnectWithAddress}
-                                loading={loading}
-                                style={styles.button}
-                                variant="secondary"
-                            />
-                            <Text style={styles.orText}>OR</Text>
-                        </View>
-                    )}
-
-                    {/* Nonce info (while linking) */}
-                    {nonceInfo && (
-                        <View style={styles.nonceInfo}>
-                            <Text style={styles.nonceLabel}>Security Check Active</Text>
-                            <Text style={styles.nonceExpiry}>
-                                Expires in: {nonceInfo.expiresIn}s
-                            </Text>
-                        </View>
-                    )}
-
-                    {/* Wallet error display */}
-                    {walletError && (
-                        <View style={styles.errorBanner}>
-                            <Text style={styles.errorBannerText}>{walletError.message}</Text>
-                        </View>
-                    )}
-
-                    {!walletConnected ? (
-                        <Button
-                            title={isMockWallet ? 'Connect Mock Wallet' : 'Connect Wallet'}
-                            onPress={connectWallet}
-                            loading={loading}
-                            style={styles.button}
-                        />
-                    ) : (
-                        <>
-                            <Button
-                                title="Link Wallet to Account"
-                                onPress={handleLinkWallet}
-                                loading={loading}
-                                style={styles.button}
-                            />
-                            <Button
-                                title="Disconnect"
-                                onPress={disconnectWallet}
-                                variant="secondary"
-                                style={styles.button}
-                            />
-                        </>
-                    )}
-                </Card>
-            )}
-
-            <Button
-                title="Back to Home"
-                onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
-                variant="secondary"
-                style={styles.button}
+        <>
+            <AlertModal
+                visible={alertState.visible}
+                title={alertState.title}
+                message={alertState.message}
+                type={alertState.type}
+                buttons={alertState.buttons}
+                onClose={hideAlert}
             />
-        </ScrollView>
+            <ScrollView contentContainerStyle={styles.scrollContent}>
+                <View style={styles.header}>
+                    <Text style={styles.title}>Link Your Wallet</Text>
+                    <Text style={styles.subtitle}>
+                        Connect your Solana wallet to enable token transactions
+                    </Text>
+                </View>
+
+                {/* Current User Info */}
+                <Card style={styles.card}>
+                    <Text style={styles.cardTitle}>Account Information</Text>
+
+                    <View style={styles.infoRow}>
+                        <Text style={styles.label}>Name:</Text>
+                        <Text style={styles.value}>{user.name}</Text>
+                    </View>
+
+                    <View style={styles.infoRow}>
+                        <Text style={styles.label}>Role:</Text>
+                        <Badge
+                            label={user.role}
+                            variant={user.role === 'admin' ? 'success' : 'default'}
+                        />
+                    </View>
+
+                    {hasWallet && (
+                        <View style={styles.infoRow}>
+                            <Text style={styles.label}>Current Wallet:</Text>
+                            <View style={styles.walletBadge}>
+                                <Text style={styles.walletText}>
+                                    {formatWalletAddress(user.wallet_address || '')}
+                                </Text>
+                                {user.wallet_verified && (
+                                    <Badge
+                                        label="Verified"
+                                        variant="success"
+                                        style={styles.verifiedBadge}
+                                    />
+                                )}
+                            </View>
+                        </View>
+                    )}
+                </Card>
+
+                {/* Wallet Connection */}
+                {hasWallet ? (
+                    <Card style={styles.card}>
+                        <Text style={styles.cardTitle}>Update Wallet</Text>
+                        <Text style={styles.description}>
+                            You already have a wallet linked to your account. You can update it by
+                            connecting a new wallet and signing a verification message.
+                        </Text>
+
+                        {walletConnected && walletAddress && (
+                            <View style={styles.connectedWallet}>
+                                <Text style={styles.connectedLabel}>
+                                    New Wallet Connected:
+                                </Text>
+                                <Text style={styles.connectedAddress}>
+                                    {formatWalletAddress(walletAddress)}
+                                </Text>
+                            </View>
+                        )}
+
+                        {!walletConnected ? (
+                            <Button
+                                title="Connect New Wallet"
+                                onPress={connectWallet}
+                                loading={loading}
+                                style={styles.button}
+                            />
+                        ) : (
+                            <>
+                                <Button
+                                    title="Update Wallet"
+                                    onPress={handleLinkWallet}
+                                    loading={loading}
+                                    style={styles.button}
+                                />
+                                <Button
+                                    title="Disconnect"
+                                    onPress={disconnectWallet}
+                                    variant="secondary"
+                                    style={styles.button}
+                                />
+                            </>
+                        )}
+                    </Card>
+                ) : (
+                    <Card style={styles.card}>
+                        <Text style={styles.cardTitle}>Connect Your Wallet</Text>
+                        <Text style={styles.description}>
+                            Link your Solana wallet to your account to enable token transactions,
+                            transfers, and other on-chain operations.
+                        </Text>
+
+                        <View style={styles.steps}>
+                            <View style={styles.step}>
+                                <View style={styles.stepNumber}>
+                                    <Text style={styles.stepNumberText}>1</Text>
+                                </View>
+                                <Text style={styles.stepText}>
+                                    Connect your Solana wallet (Phantom, Solflare, etc.)
+                                </Text>
+                            </View>
+
+                            <View style={styles.step}>
+                                <View style={styles.stepNumber}>
+                                    <Text style={styles.stepNumberText}>2</Text>
+                                </View>
+                                <Text style={styles.stepText}>
+                                    Sign a verification message to prove ownership
+                                </Text>
+                            </View>
+
+                            <View style={styles.step}>
+                                <View style={styles.stepNumber}>
+                                    <Text style={styles.stepNumberText}>3</Text>
+                                </View>
+                                <Text style={styles.stepText}>
+                                    Your wallet will be securely linked to your account
+                                </Text>
+                            </View>
+                        </View>
+
+                        {walletConnected && walletAddress && (
+                            <View style={styles.connectedWallet}>
+                                <Text style={styles.connectedLabel}>Wallet Connected:</Text>
+                                <Text style={styles.connectedAddress}>
+                                    {formatWalletAddress(walletAddress)}
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* Show wallet type indicator */}
+                        {walletType && (
+                            <View style={styles.walletTypeIndicator}>
+                                <Text style={styles.walletTypeText}>
+                                    Mode: {walletType === 'mock' ? 'Development (Mock)' : walletType === 'web' ? 'Web Wallet' : 'WalletConnect'}
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* Mock wallet custom address input */}
+                        {isMockWallet && !walletConnected && (
+                            <View style={styles.customAddressSection}>
+                                <Text style={styles.customAddressLabel}>
+                                    Enter Custom Wallet Address (Dev Mode):
+                                </Text>
+                                <Input
+                                    value={customAddress}
+                                    onChangeText={setCustomAddress}
+                                    placeholder="Enter Solana wallet address"
+                                    style={styles.customAddressInput}
+                                />
+                                <Button
+                                    title="Connect with Custom Address"
+                                    onPress={handleConnectWithAddress}
+                                    loading={loading}
+                                    style={styles.button}
+                                    variant="secondary"
+                                />
+                                <Text style={styles.orText}>OR</Text>
+                            </View>
+                        )}
+
+                        {/* Nonce info (while linking) */}
+                        {nonceInfo && (
+                            <View style={styles.nonceInfo}>
+                                <Text style={styles.nonceLabel}>Security Check Active</Text>
+                                <Text style={styles.nonceExpiry}>
+                                    Expires in: {nonceInfo.expiresIn}s
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* Wallet error display */}
+                        {walletError && (
+                            <View style={styles.errorBanner}>
+                                <Text style={styles.errorBannerText}>{walletError.message}</Text>
+                            </View>
+                        )}
+
+                        {!walletConnected ? (
+                            <Button
+                                title={isMockWallet ? 'Connect Mock Wallet' : 'Connect Wallet'}
+                                onPress={connectWallet}
+                                loading={loading}
+                                style={styles.button}
+                            />
+                        ) : (
+                            <>
+                                <Button
+                                    title="Link Wallet to Account"
+                                    onPress={handleLinkWallet}
+                                    loading={loading}
+                                    style={styles.button}
+                                />
+                                <Button
+                                    title="Disconnect"
+                                    onPress={disconnectWallet}
+                                    variant="secondary"
+                                    style={styles.button}
+                                />
+                            </>
+                        )}
+                    </Card>
+                )}
+
+                <Button
+                    title="Back to Home"
+                    onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
+                    variant="secondary"
+                    style={styles.button}
+                />
+            </ScrollView>
+        </>
     );
 }
 

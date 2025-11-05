@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Alert } from 'react-native';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -12,31 +11,38 @@ interface User {
 export function useUsers() {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const fetchUsers = async () => {
         setLoading(true);
+        setError(null);
         try {
             const response = await fetch(`${API_URL}/users`);
             const data = await response.json();
             if (data.success) {
                 setUsers(data.users);
-                Alert.alert('Success', `Fetched ${data.count} users`);
+                return { success: true, count: data.count };
             }
-        } catch (error) {
-            console.error('Error fetching users:', error);
-            Alert.alert('Error', 'Failed to fetch users. Make sure backend is running.');
+            return { success: false };
+        } catch (err) {
+            console.error('Error fetching users:', err);
+            const errorMsg = 'Failed to fetch users. Make sure backend is running.';
+            setError(errorMsg);
+            return { success: false, error: errorMsg };
         } finally {
             setLoading(false);
         }
     };
 
-    const createUser = async (name: string): Promise<boolean> => {
+    const createUser = async (name: string) => {
         if (!name.trim()) {
-            Alert.alert('Error', 'Please enter a name');
-            return false;
+            const errorMsg = 'Please enter a name';
+            setError(errorMsg);
+            return { success: false, error: errorMsg };
         }
 
         setLoading(true);
+        setError(null);
         try {
             const response = await fetch(`${API_URL}/users`, {
                 method: 'POST',
@@ -47,15 +53,15 @@ export function useUsers() {
             });
             const data = await response.json();
             if (data.success) {
-                Alert.alert('Success', 'User created!');
                 await fetchUsers();
-                return true;
+                return { success: true };
             }
-            return false;
-        } catch (error) {
-            console.error('Error creating user:', error);
-            Alert.alert('Error', 'Failed to create user');
-            return false;
+            return { success: false };
+        } catch (err) {
+            console.error('Error creating user:', err);
+            const errorMsg = 'Failed to create user';
+            setError(errorMsg);
+            return { success: false, error: errorMsg };
         } finally {
             setLoading(false);
         }
@@ -64,6 +70,7 @@ export function useUsers() {
     return {
         users,
         loading,
+        error,
         fetchUsers,
         createUser,
     };

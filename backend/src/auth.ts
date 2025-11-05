@@ -355,64 +355,15 @@ export function verifyWalletSignature(
 }
 
 /**
- * Create a new user account with email/password
+ * Create a new user account with email/password (DEPRECATED - use createOrLoginWithWallet instead)
  */
 export async function createUserWithEmail(
-    signupData: SignupRequest
+    _signupData: SignupRequest
 ): Promise<{ success: boolean; user?: AuthUser; session?: any; error?: string }> {
-    try {
-        const { email, password, name, role = 'investor' } = signupData;
-
-        // Create auth user in Supabase
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-            email,
-            password,
-            email_confirm: true, // Auto-confirm in development
-        });
-
-        if (authError || !authData.user) {
-            return {
-                success: false,
-                error: authError?.message || 'Failed to create auth user',
-            };
-        }
-
-        // Create user profile
-        const { data: userProfile, error: profileError } = await supabaseAdmin
-            .from('users')
-            .insert([
-                {
-                    auth_user_id: authData.user.id,
-                    email,
-                    name,
-                    role,
-                    email_verified: true,
-                    wallet_verified: false,
-                },
-            ])
-            .select()
-            .single();
-
-        if (profileError || !userProfile) {
-            // Rollback: delete auth user
-            await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-            return {
-                success: false,
-                error: profileError?.message || 'Failed to create user profile',
-            };
-        }
-
-        return {
-            success: true,
-            user: userProfile as AuthUser,
-        };
-    } catch (error) {
-        console.error('[Auth] Create user error:', error);
-        return {
-            success: false,
-            error: 'Failed to create user account',
-        };
-    }
+    return {
+        success: false,
+        error: 'Email/password authentication is no longer supported. Please use wallet authentication.',
+    };
 }
 
 /**

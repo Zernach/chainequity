@@ -17,7 +17,7 @@ export class CapTableHandler extends BaseClient {
         const endpoint = blockHeight
             ? `/cap-table/${tokenMint}/${blockHeight}`
             : `/cap-table/${tokenMint}`;
-        return this.get<CapTableResponse>(endpoint);
+        return this.get<CapTableResponse>(endpoint, true);
     }
 
     /**
@@ -25,9 +25,13 @@ export class CapTableHandler extends BaseClient {
      */
     async exportCapTable(
         tokenMint: string,
-        format: 'csv' | 'json'
+        format: 'csv' | 'json',
+        blockHeight?: number
     ): Promise<{ success: boolean; data: string }> {
-        return this.post(`/cap-table/${tokenMint}/export`, { format });
+        return this.post(`/cap-table/${tokenMint}/export`, {
+            format,
+            ...(blockHeight && { blockHeight })
+        }, true);
     }
 }
 

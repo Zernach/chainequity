@@ -18,7 +18,8 @@ export class CorporateActionsHandler extends BaseClient {
     async executeStockSplit(data: StockSplitRequest): Promise<StockSplitResponse> {
         return this.post<StockSplitResponse>(
             '/admin/corporate-actions/split',
-            data
+            data,
+            true
         );
     }
 
@@ -28,7 +29,8 @@ export class CorporateActionsHandler extends BaseClient {
     async changeSymbol(data: ChangeSymbolRequest): Promise<ChangeSymbolResponse> {
         return this.post<ChangeSymbolResponse>(
             '/admin/corporate-actions/change-symbol',
-            data
+            data,
+            true
         );
     }
 }

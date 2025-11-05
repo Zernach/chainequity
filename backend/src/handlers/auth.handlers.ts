@@ -1,16 +1,11 @@
 import { Request, Response } from 'express';
 import {
     AuthRequest,
-    SignupRequest,
-    LoginRequest,
     LinkWalletRequest,
     VerifyWalletRequest,
     WalletLoginRequest,
 } from '../types/auth.types';
 import {
-    supabaseClient,
-    supabaseAdmin,
-    createUserWithEmail,
     createOrLoginWithWallet,
     linkWalletToUser,
     verifyWalletSignature,
@@ -18,100 +13,25 @@ import {
 } from '../auth';
 
 /**
- * Sign up with email/password
+ * Sign up with email/password (DEPRECATED - wallet-only authentication)
  * POST /auth/signup
  */
-export async function signup(req: Request, res: Response) {
-    try {
-        const signupData: SignupRequest = req.body;
-
-        if (!signupData.email || !signupData.password || !signupData.name) {
-            return res.status(400).json({
-                success: false,
-                error: 'Email, password, and name are required',
-            });
-        }
-
-        const result = await createUserWithEmail(signupData);
-
-        if (!result.success || !result.user) {
-            return res.status(400).json({
-                success: false,
-                error: result.error || 'Failed to create account',
-            });
-        }
-
-        return res.json({
-            success: true,
-            user: result.user,
-            message: 'Account created successfully',
-        });
-    } catch (error) {
-        console.error('Signup error:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'Failed to create account',
-        });
-    }
+export async function signup(_req: Request, res: Response) {
+    return res.status(410).json({
+        success: false,
+        error: 'Email/password authentication is no longer supported. Please use wallet authentication.',
+    });
 }
 
 /**
- * Login with email/password
+ * Login with email/password (DEPRECATED - wallet-only authentication)
  * POST /auth/login
  */
-export async function login(req: Request, res: Response) {
-    try {
-        const { email, password }: LoginRequest = req.body;
-
-        if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                error: 'Email and password are required',
-            });
-        }
-
-        const { data, error } = await supabaseClient.auth.signInWithPassword({
-            email,
-            password,
-        });
-
-        if (error || !data.user) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid email or password',
-            });
-        }
-
-        const { data: userProfile, error: profileError } = await supabaseAdmin
-            .from('users')
-            .select('*')
-            .eq('auth_user_id', data.user.id)
-            .single();
-
-        if (profileError || !userProfile) {
-            return res.status(500).json({
-                success: false,
-                error: 'Failed to fetch user profile',
-            });
-        }
-
-        return res.json({
-            success: true,
-            user: userProfile,
-            session: {
-                access_token: data.session.access_token,
-                refresh_token: data.session.refresh_token,
-                expires_in: data.session.expires_in,
-                expires_at: data.session.expires_at,
-            },
-        });
-    } catch (error) {
-        console.error('Login error:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'Failed to login',
-        });
-    }
+export async function login(_req: Request, res: Response) {
+    return res.status(410).json({
+        success: false,
+        error: 'Email/password authentication is no longer supported. Please use wallet authentication.',
+    });
 }
 
 /**

@@ -15,14 +15,14 @@ export class UsersHandler extends BaseClient {
      * Get all users
      */
     async getUsers(): Promise<GetUsersResponse> {
-        return this.get<GetUsersResponse>('/users');
+        return this.get<GetUsersResponse>('/users', true);
     }
 
     /**
      * Create a new user
      */
     async createUser(data: CreateUserRequest): Promise<CreateUserResponse> {
-        return this.post<CreateUserResponse>('/users', data);
+        return this.post<CreateUserResponse>('/users', data, true);
     }
 }
 

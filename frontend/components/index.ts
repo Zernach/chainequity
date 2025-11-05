@@ -8,15 +8,14 @@ export { default as Input } from './Input';
 export { default as Badge } from './Badge';
 export { default as LoadingSpinner } from './LoadingSpinner';
 export { default as Alert } from './Alert';
+export { default as AlertModal } from './AlertModal';
 export { default as WalletAddress } from './WalletAddress';
 export { default as TransactionStatus } from './TransactionStatus';
 export { default as Modal } from './Modal';
 export { default as Separator } from './Separator';
-export { default as HelloWorld } from './HelloWorld';
 
 // Home screen components
-export { WebSocketStatus } from './WebSocketStatus';
-export { WebSocketMessages } from './WebSocketMessages';
+export { Header } from './Header';
 export { UserManagement } from './UserManagement';
 export { UsersList } from './UsersList';
 export { TokenMinting } from './TokenMinting';

@@ -14,9 +14,14 @@
 │  │  └──────────────┘  └──────────────┘  └──────────────┘    │    │
 │  │                                                              │    │
 │  │  Components:                                                 │    │
-│  │  • app/index.tsx (Home Screen)                              │    │
+│  │  • app/index.tsx (Home Screen - User Dashboard)            │    │
+│  │  • app/admin/* (Admin Dashboard & Management)              │    │
 │  │  • app/_layout.tsx (Root Layout)                            │    │
-│  │  • components/HelloWorld.tsx                                │    │
+│  │                                                              │    │
+│  │  Contexts:                                                   │    │
+│  │  • AuthContext (User authentication & role management)      │    │
+│  │  • NetworkContext (Solana network selection: devnet,        │    │
+│  │    testnet)                                                  │    │
 │  │                                                              │    │
 │  └──────────────────────────────────────────────────────────────┘    │
 │                                                                       │
@@ -288,7 +293,24 @@ chainequity/
 │
 ├── frontend/                  # Frontend application
 │   ├── app/                   # Expo Router pages
+│   │   ├── index.tsx          # Home screen (user dashboard)
+│   │   ├── auth.tsx           # Authentication
+│   │   ├── link-wallet.tsx    # Wallet connection
+│   │   ├── _layout.tsx        # Root layout
+│   │   └── admin/             # Admin routes (role-gated)
+│   │       ├── index.tsx      # Admin dashboard
+│   │       ├── users.tsx      # User management
+│   │       ├── mint.tsx       # Token minting
+│   │       ├── allowlist.tsx  # Allowlist management
+│   │       ├── cap-table.tsx  # Cap table reports
+│   │       ├── transfers.tsx  # Transaction history
+│   │       ├── token-init.tsx # Token initialization
+│   │       └── corporate-actions.tsx # Corporate actions
 │   ├── components/            # Reusable components
+│   │   ├── Header.tsx         # Reusable header with connection status
+│   │   ├── Button.tsx         # Styled buttons
+│   │   ├── Card.tsx           # Container cards
+│   │   └── ...                # Other UI components
 │   ├── hooks/                 # Custom React hooks
 │   ├── services/              # API services
 │   └── contexts/              # React contexts
@@ -406,13 +428,90 @@ app.post('/auth/signup', handlers.signup);
 app.post('/auth/login', handlers.login);
 ```
 
+## Reusable Components
+
+### Header Component
+
+The `Header` component is a reusable header that can be used on every screen in the application. It automatically displays the backend connection status in the upper right corner.
+
+**Features:**
+- Shows real-time backend connection status (Connected/Disconnected)
+- Visual indicator with colored dot (green = connected, red = disconnected)
+- Optional back button for navigation (← arrow)
+- Optional title and subtitle support
+- Can toggle connection status display on/off
+- Automatically uses WebSocket connection from global hook
+- Consistent styling using the theme system
+
+**Implementation:**
+
+The Header is automatically applied to all screens via the layout files (`app/_layout.tsx` and `app/admin/_layout.tsx`). Each screen's header is configured with appropriate title and subtitle in the layout configuration.
+
+**Layout Configuration Example:**
+
+```typescript
+// app/_layout.tsx or app/admin/_layout.tsx
+import { Stack } from 'expo-router';
+import { Header } from '../components';
+
+export default function Layout() {
+  return (
+    <Stack>
+      <Stack.Screen
+        name="screen-name"
+        options={{
+          header: () => <Header 
+            title="Screen Title" 
+            subtitle="Screen description"
+            showBackButton={true}  // Enable back button navigation
+          />,
+        }}
+      />
+    </Stack>
+  );
+}
+```
+
+**Manual Usage (if needed):**
+
+```typescript
+import { Header } from '../components';
+
+export default function MyScreen() {
+  return (
+    <>
+      <Header 
+        title="My Screen Title"
+        subtitle="Optional subtitle text"
+        showConnectionStatus={true} // default is true
+      />
+      {/* Rest of your screen content */}
+    </>
+  );
+}
+```
+
+**Props:**
+- `title` (optional): Main heading text to display
+- `subtitle` (optional): Subtitle text below the title
+- `showConnectionStatus` (optional): Whether to show connection status badge (defaults to true)
+- `showBackButton` (optional): Whether to show back navigation button (defaults to false)
+
+**Connection Status:**
+The header automatically subscribes to the WebSocket connection state via the `useWebSocketConnection` hook, which:
+- Connects to the backend WebSocket server
+- Automatically reconnects on disconnection
+- Provides real-time connection status updates
+- Maintains connection throughout the app lifecycle
+
 ## Best Practices Implemented
 
 ✅ Separation of concerns (modular files)
 ✅ Handler-based route organization
 ✅ Environment variable management
 ✅ Error handling with try-catch
-✅ Reusable components
+✅ Reusable components (Header, Button, Card, etc.)
+✅ Global state management (WebSocket connection)
 ✅ TypeScript for type safety
 ✅ Git ignore for sensitive files
 ✅ Documentation at multiple levels

@@ -43,21 +43,21 @@ export interface AuthRequest extends Request {
 }
 
 /**
- * Signup request body
+ * Signup request body (DEPRECATED - use WalletLoginRequest instead)
  */
 export interface SignupRequest {
-    email: string;
-    password: string;
+    email?: string;
+    password?: string;
     name: string;
     role?: UserRole; // Optional, defaults to 'investor'
 }
 
 /**
- * Login request body
+ * Login request body (DEPRECATED - use WalletLoginRequest instead)
  */
 export interface LoginRequest {
-    email: string;
-    password: string;
+    email?: string;
+    password?: string;
 }
 
 /**

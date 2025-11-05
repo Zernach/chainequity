@@ -49,6 +49,27 @@ class APIClient {
         this.capTable = new CapTableHandler(baseURL);
     }
 
+    /**
+     * Set the access token for authenticated requests
+     * Propagates to all handlers that need authentication
+     */
+    setAccessToken(token: string | null) {
+        this.users.setAccessToken(token);
+        this.tokens.setAccessToken(token);
+        this.allowlist.setAccessToken(token);
+        this.minting.setAccessToken(token);
+        this.transfers.setAccessToken(token);
+        this.corporateActions.setAccessToken(token);
+        this.capTable.setAccessToken(token);
+    }
+
+    /**
+     * Get the current access token
+     */
+    getAccessToken(): string | null {
+        return this.allowlist.getAccessToken();
+    }
+
     // ==================== Health ====================
     async checkHealth() {
         return this.health.health();
@@ -68,12 +89,24 @@ class APIClient {
         return this.tokens.initializeToken(symbol, name, decimals);
     }
 
+    async getAllSecurities() {
+        return this.tokens.getAllSecurities();
+    }
+
+    async getSecurityByMint(mintAddress: string) {
+        return this.tokens.getSecurityByMint(mintAddress);
+    }
+
     async getTokenInfo(tokenMint: string) {
         return this.tokens.getTokenInfo(tokenMint);
     }
 
     async getBalance(tokenMint: string, walletAddress: string) {
         return this.tokens.getBalance(tokenMint, walletAddress);
+    }
+
+    async getWalletHoldings(walletAddress: string) {
+        return this.tokens.getWalletHoldings(walletAddress);
     }
 
     // ==================== Allowlist ====================

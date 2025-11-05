@@ -15,7 +15,7 @@ export class AllowlistHandler extends BaseClient {
      * Approve a wallet for a token
      */
     async approveWallet(data: ApproveWalletRequest): Promise<ApproveWalletResponse> {
-        return this.post<ApproveWalletResponse>('/admin/allowlist/approve', data);
+        return this.post<ApproveWalletResponse>('/admin/allowlist/approve', data, true);
     }
 
     /**
@@ -26,9 +26,9 @@ export class AllowlistHandler extends BaseClient {
         walletAddress: string
     ): Promise<{ success: boolean }> {
         return this.post('/admin/allowlist/revoke', {
-            token_mint: tokenMint,
-            wallet_address: walletAddress,
-        });
+            tokenMint,
+            walletAddress,
+        }, true);
     }
 
     /**
@@ -36,8 +36,8 @@ export class AllowlistHandler extends BaseClient {
      */
     async getAllowlist(
         tokenMint: string
-    ): Promise<{ success: boolean; entries: AllowlistEntry[] }> {
-        return this.get(`/admin/allowlist/${tokenMint}`);
+    ): Promise<{ success: boolean; allowlist: AllowlistEntry[] }> {
+        return this.get(`/allowlist/${tokenMint}`, true);
     }
 
     /**
@@ -47,7 +47,7 @@ export class AllowlistHandler extends BaseClient {
         tokenMint: string,
         walletAddress: string
     ): Promise<{ success: boolean; entry: AllowlistEntry }> {
-        return this.get(`/allowlist/${tokenMint}/${walletAddress}`);
+        return this.get(`/allowlist/${tokenMint}/${walletAddress}`, true);
     }
 }
 

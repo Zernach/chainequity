@@ -7,11 +7,10 @@ import React, { createContext, useState, useEffect, useCallback, ReactNode } fro
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { authService, supabase } from '../services/auth';
+import { api } from '../services/api';
 import {
     AuthUser,
     Session,
-    SignupRequest,
-    LoginRequest,
     LinkWalletRequest,
     WalletLoginRequest,
 } from '../services/types';
@@ -27,8 +26,6 @@ interface AuthContextValue {
     isAuthenticated: boolean;
     loading: boolean;
     error: Error | null;
-    signUp: (data: SignupRequest) => Promise<void>;
-    signIn: (data: LoginRequest) => Promise<void>;
     signOut: () => Promise<void>;
     linkWallet: (data: LinkWalletRequest) => Promise<void>;
     walletLogin: (data: WalletLoginRequest) => Promise<void>;
@@ -87,6 +84,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             await secureStoreSet(SESSION_KEY, JSON.stringify(newSession));
             setSession(newSession);
             authService.setAccessToken(newSession.access_token);
+            api.setAccessToken(newSession.access_token);
         } catch (err) {
             console.error('[AuthContext] Store session error:', err);
         }
@@ -101,6 +99,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             setSession(null);
             setUser(null);
             authService.setAccessToken(null);
+            api.setAccessToken(null);
         } catch (err) {
             console.error('[AuthContext] Clear session error:', err);
         }
@@ -149,6 +148,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
                 // Restore session
                 authService.setAccessToken(parsedSession.access_token);
+                api.setAccessToken(parsedSession.access_token);
                 setSession(parsedSession);
 
                 // Fetch current user
@@ -201,61 +201,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         };
     }, [clearSession, storeSession, refreshUser]);
 
-    // Sign up
-    const signUp = useCallback(
-        async (data: SignupRequest) => {
-            try {
-                setLoading(true);
-                setError(null);
-
-                const result = await authService.signUp(data);
-
-                if (!result.success) {
-                    throw new Error(result.error || 'Signup failed');
-                }
-
-                if (result.session && result.user) {
-                    await storeSession(result.session);
-                    setUser(result.user);
-                }
-            } catch (err) {
-                const error = err instanceof Error ? err : new Error('Signup failed');
-                setError(error);
-                throw error;
-            } finally {
-                setLoading(false);
-            }
-        },
-        [storeSession]
-    );
-
-    // Sign in
-    const signIn = useCallback(
-        async (data: LoginRequest) => {
-            try {
-                setLoading(true);
-                setError(null);
-
-                const result = await authService.signIn(data);
-
-                if (!result.success) {
-                    throw new Error(result.error || 'Login failed');
-                }
-
-                if (result.session && result.user) {
-                    await storeSession(result.session);
-                    setUser(result.user);
-                }
-            } catch (err) {
-                const error = err instanceof Error ? err : new Error('Login failed');
-                setError(error);
-                throw error;
-            } finally {
-                setLoading(false);
-            }
-        },
-        [storeSession]
-    );
+    // Note: Email/password authentication methods (signUp, signIn) have been removed
+    // Use walletLogin for authentication
 
     // Sign out
     const signOut = useCallback(async () => {
@@ -351,8 +298,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isAuthenticated,
         loading,
         error,
-        signUp,
-        signIn,
         signOut,
         linkWallet,
         walletLogin,

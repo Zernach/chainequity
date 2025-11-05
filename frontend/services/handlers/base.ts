@@ -55,8 +55,15 @@ export class BaseClient {
     ): Promise<T> {
         try {
             const { includeAuth = false, ...fetchOptions } = options || {};
+            const url = `${this.baseURL}${endpoint}`;
 
-            const response = await fetch(`${this.baseURL}${endpoint}`, {
+            console.log(`[BaseClient] Making ${fetchOptions.method || 'GET'} request to:`, url);
+            console.log('[BaseClient] Headers:', this.getHeaders(includeAuth));
+            if (fetchOptions.body) {
+                console.log('[BaseClient] Request body:', fetchOptions.body);
+            }
+
+            const response = await fetch(url, {
                 ...fetchOptions,
                 headers: {
                     ...this.getHeaders(includeAuth),
@@ -64,15 +71,19 @@ export class BaseClient {
                 },
             });
 
+            console.log('[BaseClient] Response status:', response.status, response.statusText);
+
             const data = await response.json();
+            console.log('[BaseClient] Response data:', data);
 
             if (!response.ok) {
+                console.error('[BaseClient] Request failed with data:', data);
                 throw new Error(data.error || `HTTP ${response.status}`);
             }
 
             return data;
         } catch (error) {
-            console.error(`API Error [${endpoint}]:`, error);
+            console.error(`[BaseClient] API Error [${endpoint}]:`, error);
             throw error;
         }
     }

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
-import { Card, Button, Input } from '../../components';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Card, Button, Input, AlertModal } from '../../components';
 import { theme } from '../../constants';
 import { api } from '../../services/api';
+import { useAlertModal, useSecurities } from '../../hooks';
 
 /**
  * Token Minting Screen
@@ -13,113 +14,188 @@ export default function MintTokens() {
     const [recipient, setRecipient] = useState('');
     const [amount, setAmount] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showSecuritiesDropdown, setShowSecuritiesDropdown] = useState(false);
+    const { alertState, hideAlert, error, success, confirm } = useAlertModal();
+    const { securities, loading: loadingSecurities, refetch: refetchSecurities } = useSecurities();
 
     const mintTokens = async () => {
         if (!tokenMint || !recipient || !amount) {
-            Alert.alert('Error', 'All fields are required');
+            error('Error', 'All fields are required');
             return;
         }
 
         const parsedAmount = parseFloat(amount);
         if (isNaN(parsedAmount) || parsedAmount <= 0) {
-            Alert.alert('Error', 'Amount must be a positive number');
+            error('Error', 'Amount must be a positive number');
             return;
         }
 
-        Alert.alert(
+        confirm(
             'Confirm Minting',
             `Mint ${amount} tokens to ${recipient.slice(0, 8)}...?`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Mint',
-                    onPress: async () => {
-                        setLoading(true);
-                        try {
-                            const result = await api.mintTokens({
-                                tokenMint,
-                                recipient,
-                                amount: Math.floor(parsedAmount * Math.pow(10, 9)), // Convert to lamports
-                            });
+            async () => {
+                setLoading(true);
+                try {
+                    const result = await api.mintTokens({
+                        token_mint: tokenMint,
+                        wallet_address: recipient,
+                        amount: Math.floor(parsedAmount * Math.pow(10, 9)).toString(), // Convert to lamports
+                    });
 
-                            if (result.success) {
-                                Alert.alert(
-                                    'Success',
-                                    `Minted ${amount} tokens successfully!\n\nSignature: ${result.signature}`,
-                                    [{ text: 'OK' }]
-                                );
-                                // Clear form
-                                setAmount('');
-                                setRecipient('');
-                            } else {
-                                Alert.alert('Error', result.error || 'Failed to mint tokens');
-                            }
-                        } catch (error) {
-                            Alert.alert('Error', (error as Error).message);
-                        } finally {
-                            setLoading(false);
-                        }
-                    },
-                },
-            ]
+                    if (result.success) {
+                        success(
+                            'Success',
+                            `Minted ${amount} tokens successfully!\n\nSignature: ${result.signature}`
+                        );
+                        // Clear form
+                        setAmount('');
+                        setRecipient('');
+                    } else {
+                        error('Error', result.error || 'Failed to mint tokens');
+                    }
+                } catch (err) {
+                    error('Error', (err as Error).message);
+                } finally {
+                    setLoading(false);
+                }
+            }
         );
     };
 
     return (
-        <ScrollView style={styles.container}>
-            <Card>
-                <Text style={styles.title}>Mint Tokens</Text>
-                <Text style={styles.description}>
-                    Mint tokens to approved wallet addresses
-                </Text>
-            </Card>
-
-            <Card>
-                <Text style={styles.sectionTitle}>Token Configuration</Text>
-                <Input
-                    label="Token Mint Address"
-                    value={tokenMint}
-                    onChangeText={setTokenMint}
-                    placeholder="Enter token mint address"
-                />
-            </Card>
-
-            <Card>
-                <Text style={styles.sectionTitle}>Minting Details</Text>
-                <Input
-                    label="Recipient Wallet Address"
-                    value={recipient}
-                    onChangeText={setRecipient}
-                    placeholder="Enter recipient wallet address"
-                />
-                <Input
-                    label="Amount (tokens)"
-                    value={amount}
-                    onChangeText={setAmount}
-                    placeholder="e.g., 1000"
-                    keyboardType="numeric"
-                />
-                <View style={styles.infoBox}>
-                    <Text style={styles.infoText}>
-                        ⚠️ The recipient wallet must be on the allowlist before minting.
+        <>
+            <AlertModal
+                visible={alertState.visible}
+                title={alertState.title}
+                message={alertState.message}
+                type={alertState.type}
+                buttons={alertState.buttons}
+                onClose={hideAlert}
+            />
+            <ScrollView style={styles.container}>
+                <Card>
+                    <Text style={styles.title}>Mint Tokens</Text>
+                    <Text style={styles.description}>
+                        Mint tokens to approved wallet addresses
                     </Text>
-                </View>
-                <Button onPress={mintTokens} loading={loading} variant="success">
-                    Mint Tokens
-                </Button>
-            </Card>
+                </Card>
 
-            <Card>
-                <Text style={styles.sectionTitle}>How to Mint Tokens</Text>
-                <View style={styles.stepContainer}>
-                    <Text style={styles.stepText}>1. Enter the token mint address</Text>
-                    <Text style={styles.stepText}>2. Verify recipient is on allowlist</Text>
-                    <Text style={styles.stepText}>3. Enter amount in whole tokens (not lamports)</Text>
-                    <Text style={styles.stepText}>4. Click "Mint Tokens" to execute</Text>
-                    <Text style={styles.stepText}>5. Transaction will be confirmed on-chain</Text>
-                </View>
-            </Card>
-        </ScrollView>
+                <Card>
+                    <Text style={styles.sectionTitle}>Token Configuration</Text>
+
+                    {/* Security Selector */}
+                    {loadingSecurities ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="small" color={theme.colors.primary.default} />
+                            <Text style={styles.loadingText}>Loading securities...</Text>
+                        </View>
+                    ) : securities.length > 0 ? (
+                        <View style={styles.securitySelector}>
+                            <Text style={styles.inputLabel}>Select Token</Text>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                style={styles.securityList}
+                            >
+                                {securities.map((security) => (
+                                    <TouchableOpacity
+                                        key={security.id}
+                                        style={[
+                                            styles.securityOption,
+                                            tokenMint === security.mint_address && styles.securityOptionSelected,
+                                        ]}
+                                        onPress={() => {
+                                            setTokenMint(security.mint_address);
+                                            setShowSecuritiesDropdown(false);
+                                        }}
+                                    >
+                                        <Text style={[
+                                            styles.securitySymbol,
+                                            tokenMint === security.mint_address && styles.securitySymbolSelected,
+                                        ]}>
+                                            {security.symbol}
+                                        </Text>
+                                        <Text style={[
+                                            styles.securityName,
+                                            tokenMint === security.mint_address && styles.securityNameSelected,
+                                        ]}>
+                                            {security.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                            <Button
+                                title="↻ Refresh Securities"
+                                onPress={refetchSecurities}
+                                variant="secondary"
+                                style={styles.refreshButton}
+                            />
+                        </View>
+                    ) : (
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyStateText}>
+                                No securities found. Initialize a token first.
+                            </Text>
+                            <Button
+                                title="↻ Refresh"
+                                onPress={refetchSecurities}
+                                variant="secondary"
+                                style={styles.refreshButton}
+                            />
+                        </View>
+                    )}
+
+                    {/* Manual Entry (fallback) */}
+                    {tokenMint && (
+                        <View style={styles.selectedMintContainer}>
+                            <Text style={styles.selectedMintLabel}>Selected Mint:</Text>
+                            <Text style={styles.selectedMintAddress} numberOfLines={1}>
+                                {tokenMint}
+                            </Text>
+                        </View>
+                    )}
+                </Card>
+
+                <Card>
+                    <Text style={styles.sectionTitle}>Minting Details</Text>
+                    <Input
+                        label="Recipient Wallet Address"
+                        value={recipient}
+                        onChangeText={setRecipient}
+                        placeholder="Enter recipient wallet address"
+                    />
+                    <Input
+                        label="Amount (tokens)"
+                        value={amount}
+                        onChangeText={setAmount}
+                        placeholder="e.g., 1000"
+                        keyboardType="numeric"
+                    />
+                    <View style={styles.infoBox}>
+                        <Text style={styles.infoText}>
+                            ⚠️ The recipient wallet must be on the allowlist before minting.
+                        </Text>
+                    </View>
+                    <Button
+                        title="Mint Tokens"
+                        onPress={mintTokens}
+                        loading={loading}
+                        variant="success"
+                    />
+                </Card>
+
+                <Card>
+                    <Text style={styles.sectionTitle}>How to Mint Tokens</Text>
+                    <View style={styles.stepContainer}>
+                        <Text style={styles.stepText}>1. Enter the token mint address</Text>
+                        <Text style={styles.stepText}>2. Verify recipient is on allowlist</Text>
+                        <Text style={styles.stepText}>3. Enter amount in whole tokens (not lamports)</Text>
+                        <Text style={styles.stepText}>4. Click "Mint Tokens" to execute</Text>
+                        <Text style={styles.stepText}>5. Transaction will be confirmed on-chain</Text>
+                    </View>
+                </Card>
+            </ScrollView>
+        </>
     );
 }
 
@@ -129,38 +205,122 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.background.primary,
     },
     title: {
-        ...theme.typography.h2,
+        fontSize: theme.typography.fontSize['2xl'],
+        fontWeight: theme.typography.fontWeight.bold,
         color: theme.colors.text.primary,
         marginBottom: theme.spacing.xs,
     },
     description: {
-        ...theme.typography.body,
+        fontSize: theme.typography.fontSize.base,
         color: theme.colors.text.secondary,
     },
     sectionTitle: {
-        ...theme.typography.h3,
+        fontSize: theme.typography.fontSize.lg,
+        fontWeight: theme.typography.fontWeight.semibold,
         color: theme.colors.text.primary,
         marginBottom: theme.spacing.md,
     },
     infoBox: {
-        backgroundColor: theme.colors.warning + '20',
+        backgroundColor: theme.colors.warning.bg,
         borderLeftWidth: 4,
-        borderLeftColor: theme.colors.warning,
+        borderLeftColor: theme.colors.warning.default,
         padding: theme.spacing.md,
         marginVertical: theme.spacing.md,
         borderRadius: 4,
     },
     infoText: {
-        ...theme.typography.small,
+        fontSize: theme.typography.fontSize.sm,
         color: theme.colors.text.primary,
     },
     stepContainer: {
         marginTop: theme.spacing.sm,
     },
     stepText: {
-        ...theme.typography.body,
+        fontSize: theme.typography.fontSize.base,
         color: theme.colors.text.secondary,
         marginBottom: theme.spacing.sm,
+    },
+    loadingContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: theme.spacing.md,
+    },
+    loadingText: {
+        marginLeft: theme.spacing.sm,
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.text.secondary,
+    },
+    securitySelector: {
+        marginBottom: theme.spacing.md,
+    },
+    inputLabel: {
+        fontSize: theme.typography.fontSize.sm,
+        fontWeight: theme.typography.fontWeight.medium,
+        color: theme.colors.text.primary,
+        marginBottom: theme.spacing.sm,
+    },
+    securityList: {
+        marginBottom: theme.spacing.sm,
+    },
+    securityOption: {
+        backgroundColor: theme.colors.background.secondary,
+        borderWidth: 2,
+        borderColor: theme.colors.border.default,
+        borderRadius: 8,
+        padding: theme.spacing.md,
+        marginRight: theme.spacing.sm,
+        minWidth: 120,
+    },
+    securityOptionSelected: {
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+        borderColor: theme.colors.primary.default,
+    },
+    securitySymbol: {
+        fontSize: theme.typography.fontSize.lg,
+        fontWeight: theme.typography.fontWeight.bold,
+        color: theme.colors.text.primary,
+        marginBottom: theme.spacing.xs,
+    },
+    securitySymbolSelected: {
+        color: theme.colors.primary.default,
+    },
+    securityName: {
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.text.secondary,
+    },
+    securityNameSelected: {
+        color: theme.colors.primary.dark,
+    },
+    refreshButton: {
+        marginTop: theme.spacing.sm,
+    },
+    emptyState: {
+        padding: theme.spacing.lg,
+        alignItems: 'center',
+    },
+    emptyStateText: {
+        fontSize: theme.typography.fontSize.base,
+        color: theme.colors.text.secondary,
+        textAlign: 'center',
+        marginBottom: theme.spacing.md,
+    },
+    selectedMintContainer: {
+        backgroundColor: theme.colors.background.secondary,
+        borderWidth: 1,
+        borderColor: theme.colors.border.default,
+        borderRadius: 8,
+        padding: theme.spacing.md,
+        marginTop: theme.spacing.sm,
+    },
+    selectedMintLabel: {
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.text.secondary,
+        marginBottom: theme.spacing.xs,
+    },
+    selectedMintAddress: {
+        fontSize: theme.typography.fontSize.sm,
+        fontFamily: 'monospace',
+        color: theme.colors.text.primary,
     },
 });
 

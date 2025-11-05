@@ -11,7 +11,7 @@ export class MintingHandler extends BaseClient {
      * Mint tokens to a wallet
      */
     async mintTokens(data: MintTokenRequest): Promise<MintTokenResponse> {
-        return this.post<MintTokenResponse>('/admin/mint', data);
+        return this.post<MintTokenResponse>('/admin/mint', data, true);
     }
 }
 

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert, FlatList } from 'react-native';
-import { Card, Button, Input } from '../../components';
+import { View, Text, ScrollView, StyleSheet, FlatList } from 'react-native';
+import { Card, Button, Input, AlertModal } from '../../components';
 import { theme } from '../../constants';
 import { api } from '../../services/api';
+import { useAlertModal } from '../../hooks';
 
 interface CapTableHolder {
     wallet_address: string;
@@ -36,10 +37,11 @@ export default function CapTableView() {
     const [capTable, setCapTable] = useState<CapTableData | null>(null);
     const [loading, setLoading] = useState(false);
     const [exportLoading, setExportLoading] = useState(false);
+    const { alertState, hideAlert, error, success } = useAlertModal();
 
     const loadCapTable = async () => {
         if (!tokenMint) {
-            Alert.alert('Error', 'Please enter a token mint address');
+            error('Error', 'Please enter a token mint address');
             return;
         }
 
@@ -49,12 +51,12 @@ export default function CapTableView() {
             const result = await api.getCapTable(tokenMint, height);
 
             if (result.success) {
-                setCapTable(result.data);
+                setCapTable(result as any);
             } else {
-                Alert.alert('Error', 'Failed to load cap table');
+                error('Error', 'Failed to load cap table');
             }
-        } catch (error) {
-            Alert.alert('Error', (error as Error).message);
+        } catch (err) {
+            error('Error', (err as Error).message);
         } finally {
             setLoading(false);
         }
@@ -62,27 +64,26 @@ export default function CapTableView() {
 
     const exportCapTable = async (format: 'csv' | 'json') => {
         if (!capTable) {
-            Alert.alert('Error', 'Load a cap table first');
+            error('Error', 'Load a cap table first');
             return;
         }
 
         setExportLoading(true);
         try {
-            const result = await api.exportCapTable(tokenMint, format, blockHeight ? parseInt(blockHeight, 10) : undefined);
+            const result = await api.exportCapTable(tokenMint, format);
 
             if (result.success) {
-                Alert.alert(
+                success(
                     'Success',
-                    `Cap table exported as ${format.toUpperCase()}`,
-                    [{ text: 'OK' }]
+                    `Cap table exported as ${format.toUpperCase()}`
                 );
                 // In a real app, this would trigger a download
                 console.log('Exported data:', result.data);
             } else {
-                Alert.alert('Error', 'Failed to export cap table');
+                error('Error', 'Failed to export cap table');
             }
-        } catch (error) {
-            Alert.alert('Error', (error as Error).message);
+        } catch (err) {
+            error('Error', (err as Error).message);
         } finally {
             setExportLoading(false);
         }
@@ -102,11 +103,11 @@ export default function CapTableView() {
                 </Text>
                 <View style={[
                     styles.statusBadge,
-                    { backgroundColor: item.is_approved ? theme.colors.success + '20' : theme.colors.danger + '20' }
+                    { backgroundColor: item.is_approved ? theme.colors.success.bg : theme.colors.error.bg }
                 ]}>
                     <Text style={[
                         styles.statusText,
-                        { color: item.is_approved ? theme.colors.success : theme.colors.danger }
+                        { color: item.is_approved ? theme.colors.success.default : theme.colors.error.default }
                     ]}>
                         {item.is_approved ? 'Approved' : 'Not Approved'}
                     </Text>
@@ -116,104 +117,114 @@ export default function CapTableView() {
     );
 
     return (
-        <ScrollView style={styles.container}>
-            <Card>
-                <Text style={styles.title}>Cap Table</Text>
-                <Text style={styles.description}>
-                    View token holder distribution and export cap tables
-                </Text>
-            </Card>
+        <>
+            <AlertModal
+                visible={alertState.visible}
+                title={alertState.title}
+                message={alertState.message}
+                type={alertState.type}
+                buttons={alertState.buttons}
+                onClose={hideAlert}
+            />
+            <ScrollView style={styles.container}>
+                <Card>
+                    <Text style={styles.title}>Cap Table</Text>
+                    <Text style={styles.description}>
+                        View token holder distribution and export cap tables
+                    </Text>
+                </Card>
 
-            <Card>
-                <Text style={styles.sectionTitle}>Token Configuration</Text>
-                <Input
-                    label="Token Mint Address"
-                    value={tokenMint}
-                    onChangeText={setTokenMint}
-                    placeholder="Enter token mint address"
-                />
-                <Input
-                    label="Block Height (optional)"
-                    value={blockHeight}
-                    onChangeText={setBlockHeight}
-                    placeholder="Leave empty for current block"
-                    keyboardType="numeric"
-                />
-                <Button onPress={loadCapTable} loading={loading}>
-                    Load Cap Table
-                </Button>
-            </Card>
+                <Card>
+                    <Text style={styles.sectionTitle}>Token Configuration</Text>
+                    <Input
+                        label="Token Mint Address"
+                        value={tokenMint}
+                        onChangeText={setTokenMint}
+                        placeholder="Enter token mint address"
+                    />
+                    <Input
+                        label="Block Height (optional)"
+                        value={blockHeight}
+                        onChangeText={setBlockHeight}
+                        placeholder="Leave empty for current block"
+                        keyboardType="numeric"
+                    />
+                    <Button
+                        title="Load Cap Table"
+                        onPress={loadCapTable}
+                        loading={loading}
+                    />
+                </Card>
 
-            {capTable && (
-                <>
-                    <Card>
-                        <Text style={styles.sectionTitle}>Summary</Text>
-                        <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Token:</Text>
-                            <Text style={styles.summaryValue}>
-                                {capTable.token.symbol} - {capTable.token.name}
-                            </Text>
-                        </View>
-                        <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Total Supply:</Text>
-                            <Text style={styles.summaryValue}>
-                                {(capTable.token.total_supply / Math.pow(10, 9)).toLocaleString()}
-                            </Text>
-                        </View>
-                        <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Total Holders:</Text>
-                            <Text style={styles.summaryValue}>
-                                {capTable.summary.total_holders}
-                            </Text>
-                        </View>
-                        <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Block Height:</Text>
-                            <Text style={styles.summaryValue}>
-                                {capTable.summary.block_height}
-                            </Text>
-                        </View>
-                    </Card>
+                {capTable && (
+                    <>
+                        <Card>
+                            <Text style={styles.sectionTitle}>Summary</Text>
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Token:</Text>
+                                <Text style={styles.summaryValue}>
+                                    {capTable.token.symbol} - {capTable.token.name}
+                                </Text>
+                            </View>
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Total Supply:</Text>
+                                <Text style={styles.summaryValue}>
+                                    {(capTable.token.total_supply / Math.pow(10, 9)).toLocaleString()}
+                                </Text>
+                            </View>
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Total Holders:</Text>
+                                <Text style={styles.summaryValue}>
+                                    {capTable.summary.total_holders}
+                                </Text>
+                            </View>
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Block Height:</Text>
+                                <Text style={styles.summaryValue}>
+                                    {capTable.summary.block_height}
+                                </Text>
+                            </View>
+                        </Card>
 
-                    <Card>
-                        <Text style={styles.sectionTitle}>
-                            Holders ({capTable.holders.length})
-                        </Text>
-                        {capTable.holders.length === 0 ? (
-                            <Text style={styles.emptyText}>No holders found</Text>
-                        ) : (
-                            <FlatList
-                                data={capTable.holders}
-                                renderItem={renderHolder}
-                                keyExtractor={(item) => item.wallet_address}
-                                scrollEnabled={false}
-                            />
-                        )}
-                    </Card>
+                        <Card>
+                            <Text style={styles.sectionTitle}>
+                                Holders ({capTable.holders.length})
+                            </Text>
+                            {capTable.holders.length === 0 ? (
+                                <Text style={styles.emptyText}>No holders found</Text>
+                            ) : (
+                                <FlatList
+                                    data={capTable.holders}
+                                    renderItem={renderHolder}
+                                    keyExtractor={(item) => item.wallet_address}
+                                    scrollEnabled={false}
+                                />
+                            )}
+                        </Card>
 
-                    <Card>
-                        <Text style={styles.sectionTitle}>Export Options</Text>
-                        <View style={styles.exportButtons}>
-                            <Button
-                                onPress={() => exportCapTable('csv')}
-                                loading={exportLoading}
-                                variant="secondary"
-                                style={styles.exportButton}
-                            >
-                                Export CSV
-                            </Button>
-                            <Button
-                                onPress={() => exportCapTable('json')}
-                                loading={exportLoading}
-                                variant="secondary"
-                                style={styles.exportButton}
-                            >
-                                Export JSON
-                            </Button>
-                        </View>
-                    </Card>
-                </>
-            )}
-        </ScrollView>
+                        <Card>
+                            <Text style={styles.sectionTitle}>Export Options</Text>
+                            <View style={styles.exportButtons}>
+                                <Button
+                                    title="Export CSV"
+                                    onPress={() => exportCapTable('csv')}
+                                    loading={exportLoading}
+                                    variant="secondary"
+                                    style={styles.exportButton}
+                                />
+                                <Button
+                                    title="Export JSON"
+                                    onPress={() => exportCapTable('json')}
+                                    loading={exportLoading}
+                                    variant="secondary"
+                                    style={styles.exportButton}
+                                />
+                            </View>
+                        </Card>
+                    </>
+                )}
+            </ScrollView>
+        </>
     );
 }
 
@@ -223,16 +234,18 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.background.primary,
     },
     title: {
-        ...theme.typography.h2,
+        fontSize: theme.typography.fontSize['2xl'],
+        fontWeight: theme.typography.fontWeight.bold,
         color: theme.colors.text.primary,
         marginBottom: theme.spacing.xs,
     },
     description: {
-        ...theme.typography.body,
+        fontSize: theme.typography.fontSize.base,
         color: theme.colors.text.secondary,
     },
     sectionTitle: {
-        ...theme.typography.h3,
+        fontSize: theme.typography.fontSize.lg,
+        fontWeight: theme.typography.fontWeight.semibold,
         color: theme.colors.text.primary,
         marginBottom: theme.spacing.md,
     },
@@ -242,11 +255,11 @@ const styles = StyleSheet.create({
         marginBottom: theme.spacing.sm,
     },
     summaryLabel: {
-        ...theme.typography.body,
+        fontSize: theme.typography.fontSize.base,
         color: theme.colors.text.secondary,
     },
     summaryValue: {
-        ...theme.typography.body,
+        fontSize: theme.typography.fontSize.base,
         color: theme.colors.text.primary,
         fontWeight: '600',
     },
@@ -261,13 +274,13 @@ const styles = StyleSheet.create({
         marginBottom: theme.spacing.xs,
     },
     walletText: {
-        ...theme.typography.body,
+        fontSize: theme.typography.fontSize.base,
         color: theme.colors.text.primary,
         fontFamily: 'monospace',
     },
     percentageText: {
-        ...theme.typography.body,
-        color: theme.colors.primary,
+        fontSize: theme.typography.fontSize.base,
+        color: theme.colors.primary.default,
         fontWeight: '600',
     },
     holderStats: {
@@ -276,7 +289,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     sharesText: {
-        ...theme.typography.small,
+        fontSize: theme.typography.fontSize.sm,
         color: theme.colors.text.secondary,
     },
     statusBadge: {
@@ -285,7 +298,7 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     statusText: {
-        ...theme.typography.small,
+        fontSize: theme.typography.fontSize.sm,
         fontWeight: '600',
     },
     exportButtons: {
@@ -297,7 +310,7 @@ const styles = StyleSheet.create({
         marginHorizontal: theme.spacing.xs,
     },
     emptyText: {
-        ...theme.typography.body,
+        fontSize: theme.typography.fontSize.base,
         color: theme.colors.text.secondary,
         textAlign: 'center',
         paddingVertical: theme.spacing.xl,

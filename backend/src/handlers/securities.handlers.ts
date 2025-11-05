@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { supabase } from '../db';
+import { supabaseAdmin } from '../db';
 import { AuthRequest } from '../types/auth.types';
 
 /**
@@ -8,13 +8,16 @@ import { AuthRequest } from '../types/auth.types';
  */
 export async function getAllSecurities(_req: AuthRequest, res: Response) {
     try {
-        const { data, error } = await supabase
+        // Use supabaseAdmin to bypass RLS and see all securities
+        const { data, error } = await supabaseAdmin
             .from('securities')
             .select('*')
             .eq('is_active', true)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
+
+        console.log('[Securities] Found securities:', data);
 
         res.json({
             success: true,
@@ -38,7 +41,8 @@ export async function getSecurityByMint(req: AuthRequest, res: Response) {
     try {
         const { mintAddress } = req.params;
 
-        const { data, error } = await supabase
+        // Use supabaseAdmin to bypass RLS
+        const { data, error } = await supabaseAdmin
             .from('securities')
             .select('*')
             .eq('mint_address', mintAddress)
@@ -74,7 +78,8 @@ export async function getAllowlist(req: AuthRequest, res: Response) {
     try {
         const { mintAddress } = req.params;
 
-        const { data: security } = await supabase
+        // Use supabaseAdmin to bypass RLS
+        const { data: security } = await supabaseAdmin
             .from('securities')
             .select('id')
             .eq('mint_address', mintAddress)
@@ -87,7 +92,7 @@ export async function getAllowlist(req: AuthRequest, res: Response) {
             });
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('allowlist')
             .select('*')
             .eq('security_id', security.id)
@@ -117,7 +122,8 @@ export async function checkAllowlistStatus(req: AuthRequest, res: Response) {
     try {
         const { mintAddress, walletAddress } = req.params;
 
-        const { data: security } = await supabase
+        // Use supabaseAdmin to bypass RLS
+        const { data: security } = await supabaseAdmin
             .from('securities')
             .select('id')
             .eq('mint_address', mintAddress)
@@ -130,7 +136,7 @@ export async function checkAllowlistStatus(req: AuthRequest, res: Response) {
             });
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('allowlist')
             .select('*')
             .eq('security_id', security.id)
@@ -152,6 +158,75 @@ export async function checkAllowlistStatus(req: AuthRequest, res: Response) {
         });
     } catch (error) {
         console.error('Error checking allowlist:', error);
+        return res.status(500).json({
+            success: false,
+            error: (error as Error).message,
+        });
+    }
+}
+
+/**
+ * Get token holdings for a wallet
+ * GET /holdings/:walletAddress
+ */
+export async function getWalletHoldings(req: AuthRequest, res: Response) {
+    try {
+        const { walletAddress } = req.params;
+
+        console.log('[Holdings] Fetching holdings for wallet:', walletAddress);
+
+        // Query token_balances joined with securities (use supabaseAdmin to bypass RLS)
+        const { data, error } = await supabaseAdmin
+            .from('token_balances')
+            .select(`
+                balance,
+                securities (
+                    mint_address,
+                    symbol,
+                    name,
+                    decimals,
+                    current_supply
+                )
+            `)
+            .eq('wallet_address', walletAddress)
+            .gt('balance', 0);
+
+        if (error) {
+            console.error('[Holdings] Database error:', error);
+            throw error;
+        }
+
+        console.log('[Holdings] Raw data from database:', data);
+
+        // Transform the data into the format expected by the frontend
+        const holdings = (data || []).map((item: any) => {
+            const security = item.securities;
+            const balance = item.balance;
+
+            // Calculate percentage if we have supply data
+            const percentage = security?.current_supply && security.current_supply > 0
+                ? (balance / security.current_supply) * 100
+                : undefined;
+
+            return {
+                mint: security?.mint_address || '',
+                symbol: security?.symbol || 'UNKNOWN',
+                name: security?.name || 'Unknown Token',
+                balance: balance.toString(),
+                decimals: security?.decimals || 9,
+                percentage,
+            };
+        });
+
+        console.log('[Holdings] Transformed holdings:', holdings);
+
+        return res.json({
+            success: true,
+            holdings,
+            count: holdings.length,
+        });
+    } catch (error) {
+        console.error('[Holdings] Error fetching wallet holdings:', error);
         return res.status(500).json({
             success: false,
             error: (error as Error).message,

@@ -13,24 +13,16 @@ export default function AdminDashboard() {
 
     return (
         <ScrollView style={styles.container}>
-            <Card style={styles.headerCard}>
-                <Text style={styles.title}>Admin Dashboard</Text>
-                <Text style={styles.subtitle}>
-                    Manage tokenized securities, allowlists, and corporate actions
-                </Text>
-            </Card>
-
             <Card style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Token Management</Text>
                 <Text style={styles.sectionDescription}>
                     Initialize new security tokens with compliance gating
                 </Text>
                 <Button
-                    onPress={() => router.push('/admin/token-init')}
+                    title="Initialize New Token"
+                    onPress={() => router.push('/admin/token-init' as any)}
                     variant="primary"
-                >
-                    Initialize New Token
-                </Button>
+                />
             </Card>
 
             <Card style={styles.sectionCard}>
@@ -39,11 +31,10 @@ export default function AdminDashboard() {
                     Approve or revoke wallet addresses for token transfers
                 </Text>
                 <Button
+                    title="Manage Allowlist"
                     onPress={() => router.push('/admin/allowlist')}
                     variant="primary"
-                >
-                    Manage Allowlist
-                </Button>
+                />
             </Card>
 
             <Card style={styles.sectionCard}>
@@ -52,11 +43,10 @@ export default function AdminDashboard() {
                     Mint tokens to approved wallets
                 </Text>
                 <Button
+                    title="Mint Tokens"
                     onPress={() => router.push('/admin/mint')}
                     variant="primary"
-                >
-                    Mint Tokens
-                </Button>
+                />
             </Card>
 
             <Card style={styles.sectionCard}>
@@ -65,11 +55,22 @@ export default function AdminDashboard() {
                     Execute stock splits and symbol changes
                 </Text>
                 <Button
+                    title="Execute Corporate Actions"
                     onPress={() => router.push('/admin/corporate-actions')}
                     variant="primary"
-                >
-                    Execute Corporate Actions
-                </Button>
+                />
+            </Card>
+
+            <Card style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>User Management</Text>
+                <Text style={styles.sectionDescription}>
+                    Create and manage user accounts
+                </Text>
+                <Button
+                    title="Manage Users"
+                    onPress={() => router.push('/admin/users' as any)}
+                    variant="primary"
+                />
             </Card>
 
             <Card style={styles.sectionCard}>
@@ -79,19 +80,17 @@ export default function AdminDashboard() {
                 </Text>
                 <View style={styles.buttonRow}>
                     <Button
+                        title="Cap Table"
                         onPress={() => router.push('/admin/cap-table')}
                         variant="secondary"
                         style={styles.halfButton}
-                    >
-                        Cap Table
-                    </Button>
+                    />
                     <Button
-                        onPress={() => router.push('/admin/transfers')}
+                        title="Transactions"
+                        onPress={() => router.push('/admin/transfers' as any)}
                         variant="secondary"
                         style={styles.halfButton}
-                    >
-                        Transactions
-                    </Button>
+                    />
                 </View>
             </Card>
         </ScrollView>
@@ -103,29 +102,18 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: theme.colors.background.primary,
     },
-    headerCard: {
-        marginTop: theme.spacing.lg,
-        marginBottom: theme.spacing.md,
-    },
-    title: {
-        ...theme.typography.h1,
-        color: theme.colors.text.primary,
-        marginBottom: theme.spacing.sm,
-    },
-    subtitle: {
-        ...theme.typography.body,
-        color: theme.colors.text.secondary,
-    },
     sectionCard: {
         marginBottom: theme.spacing.md,
+        marginTop: theme.spacing.md,
     },
     sectionTitle: {
-        ...theme.typography.h3,
+        fontSize: theme.typography.fontSize.lg,
+        fontWeight: theme.typography.fontWeight.semibold,
         color: theme.colors.text.primary,
         marginBottom: theme.spacing.xs,
     },
     sectionDescription: {
-        ...theme.typography.small,
+        fontSize: theme.typography.fontSize.sm,
         color: theme.colors.text.secondary,
         marginBottom: theme.spacing.md,
     },

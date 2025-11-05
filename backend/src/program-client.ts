@@ -31,28 +31,39 @@ export class GatedTokenClient {
         name: string;
         decimals: number;
     }): Promise<{ signature: string; mint: string; tokenConfig: PublicKey }> {
-        logger.info('Initializing token', { symbol: params.symbol, name: params.name });
+        logger.info('[ProgramClient] initializeToken called with params:', {
+            symbol: params.symbol,
+            name: params.name,
+            decimals: params.decimals,
+            mint: params.mint.publicKey.toString(),
+            authority: params.authority.publicKey.toString(),
+        });
 
+        logger.info('[ProgramClient] Finding token config PDA...');
         const [_tokenConfig] = await PublicKey.findProgramAddress(
             [Buffer.from('token_config'), params.mint.publicKey.toBuffer()],
             this.programId
         );
+        logger.info('[ProgramClient] Token config PDA found', { tokenConfig: _tokenConfig.toString() });
 
         // In production, this would use the actual Anchor program
         // For now, return a simulated result
         const signature = 'simulated-init-' + Date.now();
+        logger.info('[ProgramClient] Generated simulated signature', { signature });
 
-        logger.info('Token initialized', {
-            mint: params.mint.publicKey.toString(),
-            tokenConfig: _tokenConfig.toString(),
-            signature
-        });
-
-        return {
+        const result = {
             signature,
             mint: params.mint.publicKey.toString(),
             tokenConfig: _tokenConfig
         };
+
+        logger.info('[ProgramClient] Token initialized successfully, returning result:', {
+            signature: result.signature,
+            mint: result.mint,
+            tokenConfig: result.tokenConfig.toString()
+        });
+
+        return result;
     }
 
     /**
@@ -374,9 +385,27 @@ export function loadAdminKeypair(): Keypair {
         throw new Error('ADMIN_KEYPAIR_PATH not set in environment');
     }
 
-    // In production, load from file
-    // For now, generate a new keypair for testing
-    logger.warn('Using generated keypair - replace with actual admin keypair in production');
-    return Keypair.generate();
+    try {
+        const fs = require('fs');
+        const path = require('path');
+
+        // Resolve the path (handle relative paths)
+        const resolvedPath = path.resolve(keypairPath);
+
+        // Read the keypair file
+        const keypairData = JSON.parse(fs.readFileSync(resolvedPath, 'utf-8'));
+
+        // Convert to Uint8Array if it's an array of numbers
+        const secretKey = Array.isArray(keypairData)
+            ? Uint8Array.from(keypairData)
+            : keypairData;
+
+        logger.info(`Loaded admin keypair from ${resolvedPath}`);
+        return Keypair.fromSecretKey(secretKey);
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to load admin keypair: ${errorMessage}`);
+        throw new Error(`Failed to load admin keypair from ${keypairPath}: ${errorMessage}`);
+    }
 }
 
