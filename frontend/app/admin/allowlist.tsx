@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
-import { Card, Button, Input, Badge, WalletAddress, AlertModal } from '../../components';
+import { Card, Button, Input, Badge, WalletAddress, AlertModal, SecuritySelector } from '../../components';
 import { theme } from '../../constants';
 import { api } from '../../services/api';
 import { useAlertModal } from '../../hooks';
@@ -18,39 +18,13 @@ interface AllowlistEntry {
  * Approve/revoke wallet addresses for token transfers
  */
 export default function AllowlistManagement() {
-    const [securities, setSecurities] = useState<Security[]>([]);
     const [selectedSecurity, setSelectedSecurity] = useState<Security | null>(null);
     const [tokenMint, setTokenMint] = useState('');
     const [walletAddress, setWalletAddress] = useState('');
     const [allowlist, setAllowlist] = useState<AllowlistEntry[]>([]);
     const [loading, setLoading] = useState(false);
     const [loadingList, setLoadingList] = useState(false);
-    const [loadingSecurities, setLoadingSecurities] = useState(false);
     const { alertState, hideAlert, alert, success, error, warning, confirm } = useAlertModal();
-
-    // Load available securities on mount
-    useEffect(() => {
-        const loadSecuritiesOnMount = async () => {
-            setLoadingSecurities(true);
-            try {
-                const result = await api.getAllSecurities();
-                if (result.success) {
-                    setSecurities(result.securities || []);
-                    if (result.securities.length === 0) {
-                        warning(
-                            'No Securities Found',
-                            'You need to initialize a token first before managing allowlists.'
-                        );
-                    }
-                }
-            } catch (err) {
-                error('Error', 'Failed to load securities: ' + (err as Error).message);
-            } finally {
-                setLoadingSecurities(false);
-            }
-        };
-        loadSecuritiesOnMount();
-    }, []);
 
     // Auto-load allowlist when security is selected
     useEffect(() => {
@@ -85,24 +59,8 @@ export default function AllowlistManagement() {
         }
     }, [selectedSecurity]);
 
-    const loadSecurities = async () => {
-        setLoadingSecurities(true);
-        try {
-            const result = await api.getAllSecurities();
-            if (result.success) {
-                setSecurities(result.securities || []);
-                if (result.securities.length === 0) {
-                    warning(
-                        'No Securities Found',
-                        'You need to initialize a token first before managing allowlists.'
-                    );
-                }
-            }
-        } catch (err) {
-            error('Error', 'Failed to load securities: ' + (err as Error).message);
-        } finally {
-            setLoadingSecurities(false);
-        }
+    const handleSecuritySelected = (security: Security | null) => {
+        setSelectedSecurity(security);
     };
 
     const loadAllowlist = async () => {
@@ -203,27 +161,6 @@ export default function AllowlistManagement() {
         </View>
     );
 
-    const renderSecurityItem = ({ item }: { item: Security }) => (
-        <TouchableOpacity
-            style={[
-                styles.securityItem,
-                selectedSecurity?.id === item.id && styles.securityItemSelected,
-            ]}
-            onPress={() => setSelectedSecurity(item)}
-        >
-            <View style={styles.securityInfo}>
-                <Text style={styles.securitySymbol}>{item.symbol}</Text>
-                <Text style={styles.securityName}>{item.name}</Text>
-                <Text style={styles.securityMint} numberOfLines={1}>
-                    {item.mint_address}
-                </Text>
-            </View>
-            {selectedSecurity?.id === item.id && (
-                <Badge variant="success">Selected</Badge>
-            )}
-        </TouchableOpacity>
-    );
-
     return (
         <>
             <AlertModal
@@ -242,44 +179,13 @@ export default function AllowlistManagement() {
                     </Text>
                 </Card>
 
-                <Card>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Select Security</Text>
-                        <Button
-                            title="Refresh"
-                            variant="secondary"
-                            size="sm"
-                            onPress={loadSecurities}
-                            loading={loadingSecurities}
-                        />
-                    </View>
-                    {loadingSecurities ? (
-                        <Text style={styles.loadingText}>Loading securities...</Text>
-                    ) : securities.length === 0 ? (
-                        <View style={styles.emptyStateContainer}>
-                            <Text style={styles.emptyStateText}>
-                                No securities found. Initialize a token first.
-                            </Text>
-                        </View>
-                    ) : (
-                        <FlatList
-                            data={securities}
-                            renderItem={renderSecurityItem}
-                            keyExtractor={(item) => item.id}
-                            scrollEnabled={false}
-                        />
-                    )}
-
-                    {selectedSecurity && (
-                        <View style={styles.selectedSecurityInfo}>
-                            <Text style={styles.infoLabel}>Selected Token:</Text>
-                            <Text style={styles.infoValue}>
-                                {selectedSecurity.symbol} - {selectedSecurity.name}
-                            </Text>
-                            <Text style={styles.infoMintAddress}>{selectedSecurity.mint_address}</Text>
-                        </View>
-                    )}
-                </Card>
+                <SecuritySelector
+                    onSecuritySelected={handleSecuritySelected}
+                    selectedSecurity={selectedSecurity}
+                    emptyMessage="No securities found. Initialize a token first before managing allowlists."
+                    onError={error}
+                    onWarning={warning}
+                />
 
                 <Card>
                     <Text style={styles.sectionTitle}>Approve New Wallet</Text>
@@ -368,59 +274,6 @@ const styles = StyleSheet.create({
         fontWeight: theme.typography.fontWeight.semibold,
         color: theme.colors.text.primary,
     },
-    securityItem: {
-        padding: theme.spacing.md,
-        borderWidth: 2,
-        borderColor: theme.colors.border.default,
-        borderRadius: 8,
-        marginBottom: theme.spacing.sm,
-        backgroundColor: theme.colors.background.secondary,
-    },
-    securityItemSelected: {
-        borderColor: theme.colors.primary.default,
-        backgroundColor: theme.colors.primary.light,
-    },
-    securityInfo: {
-        flex: 1,
-    },
-    securitySymbol: {
-        fontSize: theme.typography.fontSize.lg,
-        fontWeight: theme.typography.fontWeight.bold,
-        color: theme.colors.text.primary,
-    },
-    securityName: {
-        fontSize: theme.typography.fontSize.sm,
-        color: theme.colors.text.secondary,
-        marginTop: 2,
-    },
-    securityMint: {
-        fontSize: theme.typography.fontSize.xs,
-        color: theme.colors.text.tertiary,
-        marginTop: 4,
-        fontFamily: 'monospace',
-    },
-    selectedSecurityInfo: {
-        marginTop: theme.spacing.md,
-        padding: theme.spacing.md,
-        backgroundColor: theme.colors.background.tertiary,
-        borderRadius: 8,
-    },
-    infoLabel: {
-        fontSize: theme.typography.fontSize.sm,
-        fontWeight: theme.typography.fontWeight.semibold,
-        color: theme.colors.text.secondary,
-    },
-    infoValue: {
-        fontSize: theme.typography.fontSize.base,
-        color: theme.colors.text.primary,
-        marginTop: 4,
-    },
-    infoMintAddress: {
-        fontSize: theme.typography.fontSize.xs,
-        color: theme.colors.text.tertiary,
-        marginTop: 4,
-        fontFamily: 'monospace',
-    },
     warningBox: {
         padding: theme.spacing.md,
         backgroundColor: '#FFF3CD',
@@ -431,15 +284,6 @@ const styles = StyleSheet.create({
     warningText: {
         fontSize: theme.typography.fontSize.base,
         color: '#856404',
-        textAlign: 'center',
-    },
-    emptyStateContainer: {
-        padding: theme.spacing.xl,
-        alignItems: 'center',
-    },
-    emptyStateText: {
-        fontSize: theme.typography.fontSize.base,
-        color: theme.colors.text.secondary,
         textAlign: 'center',
     },
     loadingText: {

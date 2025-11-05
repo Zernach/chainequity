@@ -3,6 +3,11 @@ import { EventEmitter } from 'events';
 import { supabase } from './db';
 import { logger } from './utils/logger';
 import {
+    broadcastTokenMinted,
+    broadcastTokenTransferred,
+    broadcastAllowlistUpdate,
+} from './websocket';
+import {
     ParsedEvent,
     TokenInitializedEventData,
     WalletApprovedEventData,
@@ -274,6 +279,15 @@ export class EventIndexer extends EventEmitter {
 
         logger.info('Wallet approved', { wallet, security_id: security.id });
         this.emit('wallet_approved', data);
+        
+        // Broadcast to WebSocket clients
+        broadcastAllowlistUpdate({
+            event: 'approved',
+            security_id: security.id,
+            wallet_address: wallet,
+            status: 'approved',
+        });
+        
         return data;
     }
 
@@ -321,6 +335,15 @@ export class EventIndexer extends EventEmitter {
 
         logger.info('Wallet revoked', { wallet, security_id: security.id });
         this.emit('wallet_revoked', data);
+        
+        // Broadcast to WebSocket clients
+        broadcastAllowlistUpdate({
+            event: 'revoked',
+            security_id: security.id,
+            wallet_address: wallet,
+            status: 'revoked',
+        });
+        
         return data;
     }
 
@@ -350,36 +373,47 @@ export class EventIndexer extends EventEmitter {
         }
 
         // Update security total supply
-        await supabase.from('securities').update({ current_supply: new_supply }).eq('id', security.id);
+        await supabase.from('securities').update({ current_supply: new_supply, total_supply: new_supply }).eq('id', security.id);
 
-        // Update token balance
+        // Update token balance using the update_balance database function for proper increment
+        const balanceResult = await supabase.rpc('update_balance', {
+            p_security_id: security.id,
+            p_wallet: recipient,
+            p_amount: amount,
+            p_block_height: slot,
+            p_slot: slot,
+        });
+
+        if (balanceResult.error) {
+            logger.error('Failed to update token balance', balanceResult.error as any);
+            throw balanceResult.error;
+        }
+
+        // Get the updated balance for return value
         const { data: balance, error } = await supabase
             .from('token_balances')
-            .upsert(
-                [
-                    {
-                        security_id: security.id,
-                        wallet_address: recipient,
-                        balance: amount,
-                        block_height: slot,
-                        slot: slot,
-                    },
-                ],
-                {
-                    onConflict: 'security_id,wallet_address',
-                    ignoreDuplicates: false,
-                }
-            )
-            .select()
+            .select('*')
+            .eq('security_id', security.id)
+            .eq('wallet_address', recipient)
             .single();
 
         if (error) {
-            logger.error('Failed to update token balance', error);
-            throw error;
+            logger.error('Failed to fetch updated balance', error);
         }
 
         logger.info('Tokens minted', { recipient, amount, new_supply });
         this.emit('tokens_minted', { security_id: security.id, recipient, amount, new_supply });
+        
+        // Broadcast to WebSocket clients
+        broadcastTokenMinted({
+            security_id: security.id,
+            mint_address: token_mint,
+            recipient,
+            amount,
+            new_supply,
+            balance: balance?.balance || amount,
+        });
+        
         return balance;
     }
 
@@ -459,6 +493,18 @@ export class EventIndexer extends EventEmitter {
 
         logger.info('Transfer recorded', { from, to, amount });
         this.emit('tokens_transferred', { security_id: security.id, from, to, amount });
+        
+        // Broadcast to WebSocket clients
+        broadcastTokenTransferred({
+            security_id: security.id,
+            mint_address: token_mint,
+            from,
+            to,
+            amount,
+            signature,
+            block_height: slot,
+        });
+        
         return transfer;
     }
 

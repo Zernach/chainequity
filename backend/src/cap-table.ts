@@ -431,3 +431,163 @@ function interpretGini(gini: number): string {
     return 'Very high concentration';
 }
 
+/**
+ * Create a cap table snapshot at a specific block height
+ * Story 3.11: Cap Table Snapshots
+ */
+export async function createCapTableSnapshot(
+    mintAddress: string,
+    blockHeight: number | null = null,
+    reason: string = 'Manual snapshot'
+): Promise<any> {
+    logger.info('Creating cap table snapshot', { mintAddress, blockHeight, reason });
+
+    // Validate mint address
+    if (!validatePublicKey(mintAddress)) {
+        throw new Error('Invalid mint address');
+    }
+
+    // Get security from mint address
+    const { data: security, error: securityError } = await supabase
+        .from('securities')
+        .select('*')
+        .eq('mint_address', mintAddress)
+        .single();
+
+    if (securityError || !security) {
+        throw new Error(`Security not found: ${mintAddress}`);
+    }
+
+    // Use current block height if not specified
+    const snapshotBlockHeight = blockHeight || Date.now(); // Simplified - in production, get actual block height
+
+    // Generate cap table at the specified block height
+    const capTable = await generateCapTable(mintAddress, blockHeight);
+    const holders = capTable.holders;
+
+    // Store snapshot in database
+    const { data: snapshot, error } = await supabase
+        .from('cap_table_snapshots')
+        .insert([
+            {
+                security_id: security.id,
+                block_height: snapshotBlockHeight,
+                slot: snapshotBlockHeight, // Simplified
+                total_supply: capTable.token.total_supply,
+                holder_count: holders.length,
+                snapshot_data: holders,
+                metadata: {
+                    reason: reason,
+                    created_by: 'system',
+                },
+            },
+        ])
+        .select()
+        .single();
+
+    if (error) {
+        logger.error('Failed to create snapshot', error as any);
+        throw error;
+    }
+
+    logger.info('Snapshot created successfully', { 
+        snapshotId: snapshot.id, 
+        blockHeight: snapshotBlockHeight,
+        holderCount: holders.length 
+    });
+
+    return {
+        id: snapshot.id,
+        security_id: snapshot.security_id,
+        block_height: snapshot.block_height,
+        holder_count: snapshot.holder_count,
+        total_supply: snapshot.total_supply,
+        reason: reason,
+        created_at: snapshot.created_at,
+        snapshot_data: snapshot.snapshot_data,
+    };
+}
+
+/**
+ * List all cap table snapshots for a token
+ * Story 3.11: Cap Table Snapshots
+ */
+export async function listCapTableSnapshots(mintAddress: string): Promise<any[]> {
+    logger.info('Listing cap table snapshots', { mintAddress });
+
+    // Get security from mint address
+    const { data: security } = await supabase
+        .from('securities')
+        .select('id')
+        .eq('mint_address', mintAddress)
+        .single();
+
+    if (!security) {
+        throw new Error(`Security not found: ${mintAddress}`);
+    }
+
+    const { data: snapshots, error } = await supabase
+        .from('cap_table_snapshots')
+        .select('id, block_height, slot, total_supply, holder_count, created_at')
+        .eq('security_id', security.id)
+        .order('block_height', { ascending: false });
+
+    if (error) {
+        logger.error('Failed to list snapshots', error as any);
+        throw error;
+    }
+
+    return snapshots || [];
+}
+
+/**
+ * Get a specific cap table snapshot by block height
+ * Story 3.11: Cap Table Snapshots
+ * If exact block height not found, returns nearest snapshot before requested block
+ */
+export async function getCapTableSnapshot(
+    mintAddress: string,
+    blockHeight: number
+): Promise<any> {
+    logger.info('Getting cap table snapshot', { mintAddress, blockHeight });
+
+    // Get security from mint address
+    const { data: security } = await supabase
+        .from('securities')
+        .select('id')
+        .eq('mint_address', mintAddress)
+        .single();
+
+    if (!security) {
+        throw new Error(`Security not found: ${mintAddress}`);
+    }
+
+    // Try exact match first
+    let { data: snapshot } = await supabase
+        .from('cap_table_snapshots')
+        .select('*')
+        .eq('security_id', security.id)
+        .eq('block_height', blockHeight)
+        .single();
+
+    // If no exact match, find nearest snapshot before requested block
+    if (!snapshot) {
+        const { data: nearestSnapshot } = await supabase
+            .from('cap_table_snapshots')
+            .select('*')
+            .eq('security_id', security.id)
+            .lte('block_height', blockHeight)
+            .order('block_height', { ascending: false })
+            .limit(1)
+            .single();
+
+        snapshot = nearestSnapshot;
+    }
+
+    if (!snapshot) {
+        throw new Error(`No snapshot found at or before block height ${blockHeight}`);
+    }
+
+    return snapshot;
+}
+

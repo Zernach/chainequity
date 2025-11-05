@@ -13,6 +13,7 @@ export { default as WalletAddress } from './WalletAddress';
 export { default as TransactionStatus } from './TransactionStatus';
 export { default as Modal } from './Modal';
 export { default as Separator } from './Separator';
+export { default as SecuritySelector } from './SecuritySelector';
 
 // Home screen components
 export { Header } from './Header';

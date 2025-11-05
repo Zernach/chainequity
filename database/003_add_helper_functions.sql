@@ -185,3 +185,15 @@ COMMENT ON FUNCTION calculate_concentration_metrics IS 'Calculates ownership con
 COMMENT ON FUNCTION get_transfer_volume IS 'Returns transfer metrics for a time period';
 COMMENT ON FUNCTION is_wallet_approved IS 'Checks if a wallet is approved on the allowlist';
 
+-- Add metadata column to cap_table_snapshots if it doesn't exist
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'cap_table_snapshots' 
+        AND column_name = 'metadata'
+    ) THEN
+        ALTER TABLE cap_table_snapshots ADD COLUMN metadata JSONB;
+    END IF;
+END $$;
+

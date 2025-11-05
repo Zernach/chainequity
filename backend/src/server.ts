@@ -55,11 +55,14 @@ app.get('/balance/:publicKey', authenticateRequest, handlers.handleGetBalance);
 // CAP TABLE ROUTES
 // ============================================================================
 app.get('/cap-table/:mintAddress', authenticateRequest, handlers.getCapTable);
-app.get('/cap-table/:mintAddress/:blockHeight', authenticateRequest, handlers.getHistoricalCapTable);
-app.post('/cap-table/:mintAddress/export', authenticateRequest, handlers.exportCapTable);
-app.get('/transfers/:mintAddress', authenticateRequest, handlers.getTransfers);
 app.get('/cap-table/:mintAddress/history/holder-count', authenticateRequest, handlers.getHolderHistory);
 app.get('/cap-table/:mintAddress/metrics/concentration', authenticateRequest, handlers.getConcentration);
+app.post('/cap-table/:mintAddress/export', authenticateRequest, handlers.exportCapTable);
+app.post('/cap-table/:mintAddress/snapshots', authenticateRequest, handlers.createSnapshot);
+app.get('/cap-table/:mintAddress/snapshots', authenticateRequest, handlers.listSnapshots);
+app.get('/cap-table/:mintAddress/snapshots/:blockHeight', authenticateRequest, handlers.getSnapshot);
+app.get('/cap-table/:mintAddress/:blockHeight', authenticateRequest, handlers.getHistoricalCapTable);
+app.get('/transfers/:mintAddress', authenticateRequest, handlers.getTransfers);
 
 // ============================================================================
 // SECURITIES ROUTES

@@ -179,3 +179,92 @@ export async function getConcentration(req: AuthRequest, res: Response) {
     }
 }
 
+/**
+ * Create a cap table snapshot
+ * POST /cap-table/:mintAddress/snapshots
+ * Body: { block_height?: number, reason?: string }
+ */
+export async function createSnapshot(req: AuthRequest, res: Response) {
+    try {
+        const { mintAddress } = req.params;
+        const { block_height = null, reason = 'Manual snapshot' } = req.body;
+
+        // Import the function dynamically
+        const { createCapTableSnapshot } = await import('../cap-table');
+        
+        const snapshot = await createCapTableSnapshot(mintAddress, block_height, reason);
+
+        res.json({
+            success: true,
+            data: snapshot,
+        });
+    } catch (error) {
+        console.error('Error creating snapshot:', error);
+        res.status(500).json({
+            success: false,
+            error: (error as Error).message,
+        });
+    }
+}
+
+/**
+ * List all cap table snapshots for a token
+ * GET /cap-table/:mintAddress/snapshots
+ */
+export async function listSnapshots(req: AuthRequest, res: Response) {
+    try {
+        const { mintAddress } = req.params;
+
+        // Import the function dynamically
+        const { listCapTableSnapshots } = await import('../cap-table');
+        
+        const snapshots = await listCapTableSnapshots(mintAddress);
+
+        res.json({
+            success: true,
+            data: snapshots,
+            count: snapshots.length,
+        });
+    } catch (error) {
+        console.error('Error listing snapshots:', error);
+        res.status(500).json({
+            success: false,
+            error: (error as Error).message,
+        });
+    }
+}
+
+/**
+ * Get a specific cap table snapshot by block height
+ * GET /cap-table/:mintAddress/snapshots/:blockHeight
+ */
+export async function getSnapshot(req: AuthRequest, res: Response) {
+    try {
+        const { mintAddress, blockHeight } = req.params;
+        const blockHeightNum = parseInt(blockHeight, 10);
+
+        if (isNaN(blockHeightNum) || blockHeightNum < 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid block height',
+            });
+        }
+
+        // Import the function dynamically
+        const { getCapTableSnapshot } = await import('../cap-table');
+        
+        const snapshot = await getCapTableSnapshot(mintAddress, blockHeightNum);
+
+        return res.json({
+            success: true,
+            data: snapshot,
+        });
+    } catch (error) {
+        console.error('Error getting snapshot:', error);
+        return res.status(500).json({
+            success: false,
+            error: (error as Error).message,
+        });
+    }
+}
+
