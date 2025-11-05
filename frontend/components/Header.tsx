@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../constants/theme';
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection';
 import { useAuth } from '../hooks';
@@ -20,6 +21,7 @@ export function Header({
     showBackButton = false,
 }: HeaderProps) {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { connected } = useWebSocketConnection();
     const { user, signOut } = useAuth();
     const { network, setNetwork } = useNetwork();
@@ -53,7 +55,7 @@ export function Header({
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
             {showBackButton && (
                 <TouchableOpacity
                     style={styles.backButton}
@@ -94,7 +96,7 @@ export function Header({
                             onRequestClose={() => setShowNetworkDropdown(false)}
                         >
                             <Pressable
-                                style={styles.modalOverlay}
+                                style={[styles.modalOverlay, { paddingTop: insets.top + 60 }]}
                                 onPress={() => setShowNetworkDropdown(false)}
                             >
                                 <View style={styles.dropdownContainer}>
@@ -155,7 +157,7 @@ export function Header({
                             onRequestClose={() => setShowWalletDropdown(false)}
                         >
                             <Pressable
-                                style={styles.modalOverlay}
+                                style={[styles.modalOverlay, { paddingTop: insets.top + 60 }]}
                                 onPress={() => setShowWalletDropdown(false)}
                             >
                                 <View style={styles.dropdownContainer}>
@@ -282,7 +284,6 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0, 0, 0, 0.3)',
         justifyContent: 'flex-start',
         alignItems: 'flex-end',
-        paddingTop: 60,
         paddingRight: theme.spacing.lg,
     },
     dropdownContainer: {

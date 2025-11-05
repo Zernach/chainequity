@@ -6,10 +6,9 @@ import {
     TouchableOpacity,
     StyleSheet,
     ViewStyle,
-    ScrollView,
 } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { theme } from '../constants';
-import Button from './Button';
 
 interface ModalProps {
     visible: boolean;

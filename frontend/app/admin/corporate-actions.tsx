@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { Card, Button, Input, Alert as AlertComponent, AlertModal } from '../../components';
 import { theme } from '../../constants';
 import { api } from '../../services/api';

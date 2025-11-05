@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { theme } from '../constants/theme';
 
@@ -12,7 +13,6 @@ import {
 
 // Hooks
 import { useWebSocketConnection, useAuth, useTokenHoldings } from '../hooks';
-import { formatWalletAddress } from '../hooks/useWalletConnection';
 
 export default function HomeScreen() {
     const router = useRouter();

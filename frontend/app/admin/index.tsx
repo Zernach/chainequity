@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { Card, Button } from '../../components';
 import { theme } from '../../constants';

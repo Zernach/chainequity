@@ -8,9 +8,8 @@ import {
     View,
     Text,
     StyleSheet,
-    ScrollView,
-    TextInput,
 } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../hooks/useAuth';
 import { useWalletConnection, formatWalletAddress } from '../hooks/useWalletConnection';

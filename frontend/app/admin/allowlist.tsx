@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { Card, Button, Input, Badge, WalletAddress, AlertModal } from '../../components';
 import { theme } from '../../constants';
 import { api } from '../../services/api';
@@ -266,7 +267,6 @@ export default function AllowlistManagement() {
                             renderItem={renderSecurityItem}
                             keyExtractor={(item) => item.id}
                             scrollEnabled={false}
-                            style={styles.securitiesList}
                         />
                     )}
 
@@ -367,9 +367,6 @@ const styles = StyleSheet.create({
         fontSize: theme.typography.fontSize.lg,
         fontWeight: theme.typography.fontWeight.semibold,
         color: theme.colors.text.primary,
-    },
-    securitiesList: {
-        maxHeight: 300,
     },
     securityItem: {
         padding: theme.spacing.md,
