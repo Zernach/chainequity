@@ -234,3 +234,86 @@ export async function getWalletHoldings(req: AuthRequest, res: Response) {
     }
 }
 
+/**
+ * Get all token holdings across all wallets (admin only)
+ * GET /admin/holdings/all
+ */
+export async function getAllTokenHoldings(_req: AuthRequest, res: Response) {
+    try {
+        console.log('[Holdings] Fetching all token holdings');
+
+        // Query all token_balances joined with securities and users
+        const { data, error } = await supabaseAdmin
+            .from('token_balances')
+            .select(`
+                wallet_address,
+                balance,
+                securities (
+                    mint_address,
+                    symbol,
+                    name,
+                    decimals,
+                    current_supply
+                )
+            `)
+            .gt('balance', 0)
+            .order('balance', { ascending: false });
+
+        if (error) {
+            console.error('[Holdings] Database error:', error);
+            throw error;
+        }
+
+        console.log('[Holdings] Raw data from database:', data);
+
+        // Group holdings by token mint
+        const holdingsByToken: Record<string, any> = {};
+
+        (data || []).forEach((item: any) => {
+            const security = item.securities;
+            if (!security) return;
+
+            const mintAddress = security.mint_address;
+
+            if (!holdingsByToken[mintAddress]) {
+                holdingsByToken[mintAddress] = {
+                    mint: mintAddress,
+                    symbol: security.symbol || 'UNKNOWN',
+                    name: security.name || 'Unknown Token',
+                    decimals: security.decimals || 9,
+                    totalSupply: security.current_supply || 0,
+                    holders: [],
+                };
+            }
+
+            const balance = Number(item.balance);
+            const percentage = security.current_supply && security.current_supply > 0
+                ? (balance / security.current_supply) * 100
+                : 0;
+
+            holdingsByToken[mintAddress].holders.push({
+                walletAddress: item.wallet_address,
+                balance: balance,
+                percentage: parseFloat(percentage.toFixed(4)),
+            });
+        });
+
+        // Convert to array
+        const allHoldings = Object.values(holdingsByToken);
+
+        console.log('[Holdings] Transformed all holdings:', allHoldings);
+
+        return res.json({
+            success: true,
+            holdings: allHoldings,
+            count: allHoldings.length,
+        });
+    } catch (error) {
+        console.error('[Holdings] Error fetching all token holdings:', error);
+        return res.status(500).json({
+            success: false,
+            error: (error as Error).message,
+        });
+    }
+}
+

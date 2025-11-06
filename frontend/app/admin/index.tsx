@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
-import { Card, Button } from '../../components';
+import { Card, Button, CustomList } from '../../components';
 import { theme } from '../../constants';
 
 /**
@@ -13,7 +12,7 @@ export default function AdminDashboard() {
     const router = useRouter();
 
     return (
-        <ScrollView style={styles.container}>
+        <CustomList scrollViewProps={{ style: styles.container }}>
             <Card style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Token Management</Text>
                 <Text style={styles.sectionDescription}>
@@ -94,7 +93,7 @@ export default function AdminDashboard() {
                     />
                 </View>
             </Card>
-        </ScrollView>
+        </CustomList>
     );
 }
 

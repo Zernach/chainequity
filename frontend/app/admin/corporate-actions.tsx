@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
-import { Card, Button, Input, Alert as AlertComponent, AlertModal, SecuritySelector } from '../../components';
+import { Card, Button, Input, Alert as AlertComponent, AlertModal, SecuritySelector, CustomList } from '../../components';
 import { theme } from '../../constants';
 import { api } from '../../services/api';
 import { useAlertModal } from '../../hooks';
@@ -156,7 +155,7 @@ export default function CorporateActions() {
                 buttons={alertState.buttons}
                 onClose={hideAlert}
             />
-            <ScrollView style={styles.container}>
+            <CustomList scrollViewProps={{ style: styles.container }}>
                 <Card>
                     <Text style={styles.title}>Corporate Actions</Text>
                     <Text style={styles.description}>
@@ -247,7 +246,7 @@ export default function CorporateActions() {
                         )}
                     </>
                 )}
-            </ScrollView>
+            </CustomList>
         </>
     );
 }

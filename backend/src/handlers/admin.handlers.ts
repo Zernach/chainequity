@@ -292,21 +292,14 @@ export async function mintTokens(req: AuthRequest, res: Response) {
             console.error('Failed to update security supply:', supplyError);
         }
 
-        // Update or create token balance
-        const { error: balanceError } = await supabaseAdmin
-            .from('token_balances')
-            .upsert(
-                {
-                    security_id: security.id,
-                    wallet_address,
-                    balance: amountInt, // In production, this would add to existing balance
-                    block_height: 0, // Simulation
-                    slot: 0, // Simulation
-                },
-                {
-                    onConflict: 'security_id,wallet_address',
-                }
-            );
+        // Update or create token balance using the update_balance database function for proper increment
+        const { error: balanceError } = await supabaseAdmin.rpc('update_balance', {
+            p_security_id: security.id,
+            p_wallet: wallet_address,
+            p_amount: amountInt,
+            p_block_height: 0, // Simulation
+            p_slot: 0, // Simulation
+        });
 
         if (balanceError) {
             console.error('Failed to update token balance:', balanceError);

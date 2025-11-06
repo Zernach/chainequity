@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
 import { theme } from '../../constants';
+import { CustomList } from '../../components';
 import { UserManagement, UsersList, Card } from '../../components';
 import { useUsers } from '../../hooks';
 
@@ -13,7 +13,7 @@ export default function AdminUsersScreen() {
     const { users, loading, createUser, fetchUsers } = useUsers();
 
     return (
-        <ScrollView style={styles.container}>
+        <CustomList scrollViewProps={{ style: styles.container }}>
             <Card style={styles.headerCard}>
                 <Text style={styles.title}>User Management</Text>
                 <Text style={styles.description}>
@@ -34,7 +34,7 @@ export default function AdminUsersScreen() {
                     <ActivityIndicator size="large" color={theme.colors.primary.default} />
                 </View>
             )}
-        </ScrollView>
+        </CustomList>
     );
 }
 

@@ -7,8 +7,8 @@ import {
     StyleSheet,
     ViewStyle,
 } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
 import { theme } from '../constants';
+import { CustomList } from './CustomList';
 
 interface ModalProps {
     visible: boolean;
@@ -55,9 +55,9 @@ export default function Modal({
                     )}
 
                     {/* Content */}
-                    <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+                    <CustomList scrollViewProps={{ style: styles.content, showsVerticalScrollIndicator: false }}>
                         {children}
-                    </ScrollView>
+                    </CustomList>
 
                     {/* Footer */}
                     {footer && <View style={styles.footer}>{footer}</View>}

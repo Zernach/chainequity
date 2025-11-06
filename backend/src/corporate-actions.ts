@@ -44,14 +44,15 @@ export async function executeStockSplit(params: StockSplitParams): Promise<Stock
 
     try {
         // 1. Get all current holders from database
-        const { data: security } = await supabase
+        const { data: security, error: securityError } = await supabase
             .from('securities')
             .select('id, decimals')
             .eq('mint_address', tokenMint)
             .single();
 
-        if (!security) {
-            throw new Error('Security not found');
+        if (securityError || !security) {
+            logger.error('Security not found', new Error(`Security not found for mint: ${tokenMint}`));
+            throw new Error(`Security not found for mint address: ${tokenMint}. Please ensure the token is initialized in the database first.`);
         }
 
         const { data: holders } = await supabase
@@ -93,7 +94,7 @@ export async function executeStockSplit(params: StockSplitParams): Promise<Stock
         }
 
         // 4. Create new security record
-        const { error: securityError } = await supabase.from('securities').insert({
+        const { error: newSecurityError } = await supabase.from('securities').insert({
             mint_address: newMint,
             symbol: newSymbol,
             name: newName,
@@ -105,8 +106,8 @@ export async function executeStockSplit(params: StockSplitParams): Promise<Stock
             previous_mint: tokenMint,
         });
 
-        if (securityError) {
-            logger.error('Failed to create new security', securityError as any);
+        if (newSecurityError) {
+            logger.error('Failed to create new security', newSecurityError as any);
             throw new Error('Failed to create new security');
         }
 
@@ -233,14 +234,15 @@ export async function changeTokenSymbol(params: SymbolChangeParams): Promise<Sym
 
     try {
         // Get security
-        const { data: security } = await supabase
+        const { data: security, error: securityError } = await supabase
             .from('securities')
             .select('id, symbol, name')
             .eq('mint_address', tokenMint)
             .single();
 
-        if (!security) {
-            throw new Error('Security not found');
+        if (securityError || !security) {
+            logger.error('Security not found', new Error(`Security not found for mint: ${tokenMint}`));
+            throw new Error(`Security not found for mint address: ${tokenMint}. Please ensure the token is initialized in the database first.`);
         }
 
         const oldSymbol = security.symbol;

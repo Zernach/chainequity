@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, Platform } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Card, Button, Input, Modal } from '../../components';
+import { Card, Button, Input, Modal, CustomList } from '../../components';
 import { theme } from '../../constants';
 import { api } from '../../services/api';
+import { useToast } from '../../hooks';
 
 /**
  * Token Initialization Screen
@@ -12,6 +12,7 @@ import { api } from '../../services/api';
  */
 export default function TokenInitialization() {
     const router = useRouter();
+    const toast = useToast();
     const [symbol, setSymbol] = useState('');
     const [name, setName] = useState('');
     const [decimals, setDecimals] = useState('9');
@@ -25,26 +26,26 @@ export default function TokenInitialization() {
 
         if (!symbol || !name) {
             console.log('[TokenInit] Validation failed: missing symbol or name');
-            alert('Symbol and name are required');
+            toast.warning('Symbol and name are required');
             return false;
         }
 
         const parsedDecimals = parseInt(decimals, 10);
         if (isNaN(parsedDecimals) || parsedDecimals < 0 || parsedDecimals > 9) {
             console.log('[TokenInit] Validation failed: invalid decimals', parsedDecimals);
-            alert('Decimals must be between 0 and 9');
+            toast.warning('Decimals must be between 0 and 9');
             return false;
         }
 
         if (symbol.length < 3 || symbol.length > 10) {
             console.log('[TokenInit] Validation failed: invalid symbol length', symbol.length);
-            alert('Symbol must be 3-10 characters');
+            toast.warning('Symbol must be 3-10 characters');
             return false;
         }
 
         if (name.length < 2 || name.length > 50) {
             console.log('[TokenInit] Validation failed: invalid name length', name.length);
-            alert('Name must be 2-50 characters');
+            toast.warning('Name must be 2-50 characters');
             return false;
         }
 
@@ -85,7 +86,7 @@ export default function TokenInitialization() {
             if (result.success) {
                 console.log('[TokenInit] Success! Mint:', result.mint);
                 setLastInitializedMint(result.mint);
-                alert(`Token initialized successfully!\n\nMint: ${result.mint}\n\nSignature: ${result.signature}`);
+                toast.success(`Token ${symbol} initialized successfully!`, 5000);
 
                 // Clear form
                 setSymbol('');
@@ -94,7 +95,7 @@ export default function TokenInitialization() {
             } else {
                 const errorMsg = (result as any).error || 'Failed to initialize token';
                 console.error('[TokenInit] Failed:', errorMsg);
-                alert(`Error: ${errorMsg}`);
+                toast.error(`Failed to initialize token: ${errorMsg}`, 6000);
             }
         } catch (error) {
             console.error('[TokenInit] Exception caught:', error);
@@ -102,7 +103,7 @@ export default function TokenInitialization() {
                 message: (error as Error).message,
                 stack: (error as Error).stack
             });
-            alert(`Error: ${(error as Error).message}`);
+            toast.error(`Error: ${(error as Error).message}`, 6000);
         } finally {
             console.log('[TokenInit] Finished, setting loading to false');
             setLoading(false);
@@ -110,7 +111,7 @@ export default function TokenInitialization() {
     };
 
     return (
-        <ScrollView style={styles.container}>
+        <CustomList scrollViewProps={{ style: styles.container }}>
             <Card>
                 <Text style={styles.title}>Initialize New Token</Text>
                 <Text style={styles.description}>
@@ -254,7 +255,7 @@ export default function TokenInitialization() {
                     </View>
                 </View>
             </Modal>
-        </ScrollView>
+        </CustomList>
     );
 }
 

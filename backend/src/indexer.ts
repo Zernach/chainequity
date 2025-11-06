@@ -26,6 +26,10 @@ export class EventIndexer extends EventEmitter {
     private isRunning: boolean;
     private subscriptionId: number | null;
     public lastProcessedSlot: number;
+    private reconnectAttempts: number;
+    private maxReconnectAttempts: number;
+    private reconnectDelay: number;
+    private healthCheckInterval: NodeJS.Timeout | null;
 
     constructor(connection: Connection, programId: string) {
         super();
@@ -34,6 +38,10 @@ export class EventIndexer extends EventEmitter {
         this.isRunning = false;
         this.subscriptionId = null;
         this.lastProcessedSlot = 0;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 10;
+        this.reconnectDelay = 5000; // 5 seconds
+        this.healthCheckInterval = null;
     }
 
     /**
@@ -48,22 +56,137 @@ export class EventIndexer extends EventEmitter {
         this.isRunning = true;
         logger.info('Starting event indexer', { programId: this.programId.toString() });
 
-        // Subscribe to program logs
-        this.subscriptionId = this.connection.onLogs(
-            this.programId,
-            async (logs: Logs, context: Context) => {
-                try {
-                    await this.processLogs(logs, context);
-                } catch (error) {
-                    logger.error('Error processing logs', error as Error);
-                    this.emit('error', error);
-                }
-            },
-            'confirmed'
-        );
+        try {
+            // Test connection health before subscribing
+            await this.checkConnectionHealth();
 
-        logger.info('Indexer started successfully', { subscriptionId: this.subscriptionId });
-        this.emit('started');
+            // Subscribe to program logs
+            this.subscriptionId = this.connection.onLogs(
+                this.programId,
+                async (logs: Logs, context: Context) => {
+                    try {
+                        await this.processLogs(logs, context);
+                        // Reset reconnect attempts on successful processing
+                        this.reconnectAttempts = 0;
+                    } catch (error) {
+                        logger.error('Error processing logs', error as Error);
+                        this.emit('error', error);
+
+                        // Attempt reconnection if processing fails repeatedly
+                        await this.handleConnectionError(error as Error);
+                    }
+                },
+                'confirmed'
+            );
+
+            logger.info('Indexer started successfully', {
+                subscriptionId: this.subscriptionId,
+                programId: this.programId.toString()
+            });
+
+            // Start periodic health checks
+            this.startHealthChecks();
+
+            this.emit('started');
+
+        } catch (error) {
+            logger.error('Failed to start indexer', error as Error);
+            this.isRunning = false;
+            throw error;
+        }
+    }
+
+    /**
+     * Check if the RPC connection is healthy
+     */
+    private async checkConnectionHealth(): Promise<boolean> {
+        try {
+            const slot = await this.connection.getSlot('confirmed');
+            logger.debug('Connection health check passed', { currentSlot: slot });
+            return true;
+        } catch (error) {
+            logger.error('Connection health check failed', error as Error);
+            return false;
+        }
+    }
+
+    /**
+     * Start periodic health checks
+     */
+    private startHealthChecks(): void {
+        // Check every 30 seconds
+        this.healthCheckInterval = setInterval(async () => {
+            const isHealthy = await this.checkConnectionHealth();
+
+            if (!isHealthy && this.isRunning) {
+                logger.warn('Health check failed, attempting to reconnect...');
+                await this.reconnect();
+            }
+        }, 30000);
+    }
+
+    /**
+     * Handle connection errors and attempt reconnection
+     */
+    private async handleConnectionError(error: Error): Promise<void> {
+        logger.error('Connection error detected', error);
+
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            logger.info(`Attempting reconnection (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+
+            await new Promise(resolve => setTimeout(resolve, this.reconnectDelay));
+            await this.reconnect();
+        } else {
+            logger.error('Max reconnection attempts reached, stopping indexer');
+            this.emit('max_reconnects_reached');
+            await this.stop();
+        }
+    }
+
+    /**
+     * Reconnect to the RPC endpoint
+     */
+    private async reconnect(): Promise<void> {
+        logger.info('Reconnecting to Solana RPC...');
+
+        try {
+            // Stop current subscription
+            if (this.subscriptionId !== null) {
+                await this.connection.removeOnLogsListener(this.subscriptionId);
+                this.subscriptionId = null;
+            }
+
+            // Test connection
+            const isHealthy = await this.checkConnectionHealth();
+
+            if (!isHealthy) {
+                throw new Error('Connection health check failed after reconnect attempt');
+            }
+
+            // Resubscribe to logs
+            this.subscriptionId = this.connection.onLogs(
+                this.programId,
+                async (logs: Logs, context: Context) => {
+                    try {
+                        await this.processLogs(logs, context);
+                        this.reconnectAttempts = 0;
+                    } catch (error) {
+                        logger.error('Error processing logs', error as Error);
+                        this.emit('error', error);
+                    }
+                },
+                'confirmed'
+            );
+
+            logger.info('Reconnected successfully', { subscriptionId: this.subscriptionId });
+            this.reconnectAttempts = 0;
+            this.emit('reconnected');
+
+        } catch (error) {
+            logger.error('Reconnection failed', error as Error);
+            throw error;
+        }
     }
 
     /**
@@ -76,6 +199,13 @@ export class EventIndexer extends EventEmitter {
 
         this.isRunning = false;
 
+        // Clear health check interval
+        if (this.healthCheckInterval !== null) {
+            clearInterval(this.healthCheckInterval);
+            this.healthCheckInterval = null;
+        }
+
+        // Remove subscription
         if (this.subscriptionId !== null) {
             await this.connection.removeOnLogsListener(this.subscriptionId);
             this.subscriptionId = null;
@@ -83,6 +213,23 @@ export class EventIndexer extends EventEmitter {
 
         logger.info('Indexer stopped');
         this.emit('stopped');
+    }
+
+    /**
+     * Get indexer status
+     */
+    getStatus(): {
+        isRunning: boolean;
+        lastProcessedSlot: number;
+        reconnectAttempts: number;
+        subscriptionActive: boolean;
+    } {
+        return {
+            isRunning: this.isRunning,
+            lastProcessedSlot: this.lastProcessedSlot,
+            reconnectAttempts: this.reconnectAttempts,
+            subscriptionActive: this.subscriptionId !== null,
+        };
     }
 
     /**
@@ -279,7 +426,7 @@ export class EventIndexer extends EventEmitter {
 
         logger.info('Wallet approved', { wallet, security_id: security.id });
         this.emit('wallet_approved', data);
-        
+
         // Broadcast to WebSocket clients
         broadcastAllowlistUpdate({
             event: 'approved',
@@ -287,7 +434,7 @@ export class EventIndexer extends EventEmitter {
             wallet_address: wallet,
             status: 'approved',
         });
-        
+
         return data;
     }
 
@@ -335,7 +482,7 @@ export class EventIndexer extends EventEmitter {
 
         logger.info('Wallet revoked', { wallet, security_id: security.id });
         this.emit('wallet_revoked', data);
-        
+
         // Broadcast to WebSocket clients
         broadcastAllowlistUpdate({
             event: 'revoked',
@@ -343,7 +490,7 @@ export class EventIndexer extends EventEmitter {
             wallet_address: wallet,
             status: 'revoked',
         });
-        
+
         return data;
     }
 
@@ -403,7 +550,7 @@ export class EventIndexer extends EventEmitter {
 
         logger.info('Tokens minted', { recipient, amount, new_supply });
         this.emit('tokens_minted', { security_id: security.id, recipient, amount, new_supply });
-        
+
         // Broadcast to WebSocket clients
         broadcastTokenMinted({
             security_id: security.id,
@@ -413,7 +560,7 @@ export class EventIndexer extends EventEmitter {
             new_supply,
             balance: balance?.balance || amount,
         });
-        
+
         return balance;
     }
 
@@ -493,7 +640,7 @@ export class EventIndexer extends EventEmitter {
 
         logger.info('Transfer recorded', { from, to, amount });
         this.emit('tokens_transferred', { security_id: security.id, from, to, amount });
-        
+
         // Broadcast to WebSocket clients
         broadcastTokenTransferred({
             security_id: security.id,
@@ -504,7 +651,7 @@ export class EventIndexer extends EventEmitter {
             signature,
             block_height: slot,
         });
-        
+
         return transfer;
     }
 

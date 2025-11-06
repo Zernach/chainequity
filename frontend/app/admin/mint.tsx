@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, FlatList } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
-import { Card, Button, Input, AlertModal, WalletAddress, Badge } from '../../components';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Card, Button, Input, AlertModal, WalletAddress, Badge, CustomList } from '../../components';
 import { theme } from '../../constants';
 import { api } from '../../services/api';
 import { useAlertModal, useSecurities } from '../../hooks';
 import type { AllowlistEntry } from '../../services/types';
 
+interface RecipientWithAmount {
+    wallet_address: string;
+    amount: string;
+}
+
 /**
  * Token Minting Screen
- * Mint tokens to approved wallets
+ * Mint tokens to approved wallets with multi-select capability
  */
 export default function MintTokens() {
     const [tokenMint, setTokenMint] = useState('');
-    const [recipient, setRecipient] = useState('');
-    const [amount, setAmount] = useState('');
+    const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
+    const [recipientAmounts, setRecipientAmounts] = useState<Map<string, string>>(new Map());
     const [loading, setLoading] = useState(false);
     const [loadingAllowlist, setLoadingAllowlist] = useState(false);
     const [allowlist, setAllowlist] = useState<AllowlistEntry[]>([]);
@@ -27,6 +31,8 @@ export default function MintTokens() {
         const loadAllowlist = async () => {
             if (!tokenMint) {
                 setAllowlist([]);
+                setSelectedRecipients(new Set());
+                setRecipientAmounts(new Map());
                 return;
             }
 
@@ -51,40 +57,122 @@ export default function MintTokens() {
         loadAllowlist();
     }, [tokenMint]);
 
+    const toggleRecipient = (walletAddress: string) => {
+        const newSelected = new Set(selectedRecipients);
+        if (newSelected.has(walletAddress)) {
+            newSelected.delete(walletAddress);
+            const newAmounts = new Map(recipientAmounts);
+            newAmounts.delete(walletAddress);
+            setRecipientAmounts(newAmounts);
+        } else {
+            newSelected.add(walletAddress);
+        }
+        setSelectedRecipients(newSelected);
+    };
+
+    const updateRecipientAmount = (walletAddress: string, amount: string) => {
+        const newAmounts = new Map(recipientAmounts);
+        newAmounts.set(walletAddress, amount);
+        setRecipientAmounts(newAmounts);
+    };
+
     const mintTokens = async () => {
-        if (!tokenMint || !recipient || !amount) {
-            error('Error', 'All fields are required');
+        if (!tokenMint) {
+            error('Error', 'Please select a token');
             return;
         }
 
-        const parsedAmount = parseFloat(amount);
-        if (isNaN(parsedAmount) || parsedAmount <= 0) {
-            error('Error', 'Amount must be a positive number');
+        if (selectedRecipients.size === 0) {
+            error('Error', 'Please select at least one recipient');
             return;
         }
+
+        // Validate all selected recipients have amounts
+        const invalidRecipients: string[] = [];
+        const recipients: RecipientWithAmount[] = [];
+
+        selectedRecipients.forEach(wallet => {
+            const amountStr = recipientAmounts.get(wallet) || '';
+            const parsedAmount = parseFloat(amountStr);
+
+            if (!amountStr || isNaN(parsedAmount) || parsedAmount <= 0) {
+                invalidRecipients.push(wallet);
+            } else {
+                recipients.push({
+                    wallet_address: wallet,
+                    amount: Math.floor(parsedAmount * Math.pow(10, 9)).toString(), // Convert to lamports
+                });
+            }
+        });
+
+        if (invalidRecipients.length > 0) {
+            error('Error', `Please enter valid amounts for all selected recipients`);
+            return;
+        }
+
+        const totalAmount = recipients.reduce((sum, r) => {
+            return sum + parseFloat(recipientAmounts.get(r.wallet_address) || '0');
+        }, 0);
 
         confirm(
-            'Confirm Minting',
-            `Mint ${amount} tokens to ${recipient.slice(0, 8)}...?`,
+            'Confirm Batch Minting',
+            `Mint tokens to ${recipients.length} wallet(s)?\n\nTotal: ${totalAmount.toFixed(2)} tokens`,
             async () => {
                 setLoading(true);
                 try {
-                    const result = await api.mintTokens({
-                        token_mint: tokenMint,
-                        wallet_address: recipient,
-                        amount: Math.floor(parsedAmount * Math.pow(10, 9)).toString(), // Convert to lamports
-                    });
+                    let successCount = 0;
+                    let failCount = 0;
+                    const results: string[] = [];
 
-                    if (result.success) {
+                    // Execute minting operations sequentially
+                    for (const recipient of recipients) {
+                        try {
+                            const result = await api.mintTokens({
+                                token_mint: tokenMint,
+                                wallet_address: recipient.wallet_address,
+                                amount: recipient.amount,
+                            });
+
+                            if (result.success) {
+                                successCount++;
+                                results.push(`✓ ${recipient.wallet_address.slice(0, 8)}...`);
+                            } else {
+                                failCount++;
+                                results.push(`✗ ${recipient.wallet_address.slice(0, 8)}... - ${result.error}`);
+                            }
+                        } catch (err) {
+                            failCount++;
+                            results.push(`✗ ${recipient.wallet_address.slice(0, 8)}... - ${(err as Error).message}`);
+                        }
+                    }
+
+                    // Show results
+                    if (failCount === 0) {
                         success(
                             'Success',
-                            `Minted ${amount} tokens successfully!\n\nSignature: ${result.signature}`
+                            `Minted tokens to ${successCount} wallet(s) successfully!`
                         );
-                        // Clear form
-                        setAmount('');
-                        setRecipient('');
+                        // Clear selections
+                        setSelectedRecipients(new Set());
+                        setRecipientAmounts(new Map());
+                    } else if (successCount === 0) {
+                        error('Error', `All minting operations failed:\n${results.join('\n')}`);
                     } else {
-                        error('Error', result.error || 'Failed to mint tokens');
+                        error(
+                            'Partial Success',
+                            `${successCount} succeeded, ${failCount} failed:\n${results.join('\n')}`
+                        );
+                        // Clear only successful recipients
+                        const newSelected = new Set(selectedRecipients);
+                        const newAmounts = new Map(recipientAmounts);
+                        recipients.forEach(r => {
+                            if (results.find(res => res.startsWith(`✓ ${r.wallet_address.slice(0, 8)}`))) {
+                                newSelected.delete(r.wallet_address);
+                                newAmounts.delete(r.wallet_address);
+                            }
+                        });
+                        setSelectedRecipients(newSelected);
+                        setRecipientAmounts(newAmounts);
                     }
                 } catch (err) {
                     error('Error', (err as Error).message);
@@ -105,7 +193,7 @@ export default function MintTokens() {
                 buttons={alertState.buttons}
                 onClose={hideAlert}
             />
-            <ScrollView style={styles.container}>
+            <CustomList scrollViewProps={{ style: styles.container }}>
                 <Card>
                     <Text style={styles.title}>Mint Tokens</Text>
                     <Text style={styles.description}>
@@ -125,10 +213,12 @@ export default function MintTokens() {
                     ) : securities.length > 0 ? (
                         <View style={styles.securitySelector}>
                             <Text style={styles.inputLabel}>Select Token</Text>
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                style={styles.securityList}
+                            <CustomList
+                                scrollViewProps={{
+                                    horizontal: true,
+                                    showsHorizontalScrollIndicator: false,
+                                    style: styles.securityList,
+                                }}
                             >
                                 {securities.map((security) => (
                                     <TouchableOpacity
@@ -156,7 +246,7 @@ export default function MintTokens() {
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
-                            </ScrollView>
+                            </CustomList>
                             <Button
                                 title="↻ Refresh Securities"
                                 onPress={refetchSecurities}
@@ -190,7 +280,7 @@ export default function MintTokens() {
                 </Card>
 
                 <Card>
-                    <Text style={styles.sectionTitle}>Select Recipient</Text>
+                    <Text style={styles.sectionTitle}>Select Recipients & Amounts</Text>
                     {!tokenMint ? (
                         <View style={styles.warningBox}>
                             <Text style={styles.warningText}>
@@ -211,63 +301,91 @@ export default function MintTokens() {
                     ) : (
                         <>
                             <Text style={styles.helpText}>
-                                Select a recipient from the approved wallets:
+                                Select recipient(s) and enter amounts for each:
                             </Text>
-                            <FlatList
-                                data={allowlist}
-                                renderItem={({ item }) => (
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.walletOption,
-                                            recipient === item.wallet_address && styles.walletOptionSelected,
-                                        ]}
-                                        onPress={() => setRecipient(item.wallet_address)}
-                                    >
-                                        <View style={styles.walletInfo}>
-                                            <WalletAddress address={item.wallet_address} />
-                                            <Badge variant="success">Approved</Badge>
-                                        </View>
-                                        {recipient === item.wallet_address && (
-                                            <Text style={styles.selectedCheckmark}>✓</Text>
-                                        )}
-                                    </TouchableOpacity>
-                                )}
-                                keyExtractor={(item) => item.wallet_address}
-                                scrollEnabled={false}
-                                style={styles.walletList}
-                            />
-                            <Text style={styles.orText}>OR</Text>
-                            <Input
-                                label="Manual Entry (if not in list)"
-                                value={recipient}
-                                onChangeText={setRecipient}
-                                placeholder="Enter recipient wallet address"
+                            <CustomList
+                                flatListProps={{
+                                    data: allowlist,
+                                    renderItem: ({ item }) => {
+                                        const isSelected = selectedRecipients.has(item.wallet_address);
+                                        const amount = recipientAmounts.get(item.wallet_address) || '';
+
+                                        return (
+                                            <View style={styles.recipientCard}>
+                                                <TouchableOpacity
+                                                    style={[
+                                                        styles.walletOption,
+                                                        isSelected && styles.walletOptionSelected,
+                                                    ]}
+                                                    onPress={() => toggleRecipient(item.wallet_address)}
+                                                >
+                                                    <View style={styles.walletInfo}>
+                                                        <View style={styles.checkboxContainer}>
+                                                            <View style={[
+                                                                styles.checkbox,
+                                                                isSelected && styles.checkboxSelected
+                                                            ]}>
+                                                                {isSelected && (
+                                                                    <Text style={styles.checkboxCheckmark}>✓</Text>
+                                                                )}
+                                                            </View>
+                                                        </View>
+                                                        <View style={styles.walletDetails}>
+                                                            <WalletAddress address={item.wallet_address} />
+                                                            <Badge variant="success">Approved</Badge>
+                                                        </View>
+                                                    </View>
+                                                </TouchableOpacity>
+                                                {isSelected && (
+                                                    <View style={styles.amountInputContainer}>
+                                                        <Input
+                                                            label="Amount (tokens)"
+                                                            value={amount}
+                                                            onChangeText={(text) => updateRecipientAmount(item.wallet_address, text)}
+                                                            placeholder="e.g., 1000"
+                                                            keyboardType="numeric"
+                                                            style={styles.amountInput}
+                                                        />
+                                                    </View>
+                                                )}
+                                            </View>
+                                        );
+                                    },
+                                    keyExtractor: (item) => item.wallet_address,
+                                    scrollEnabled: false,
+                                    style: styles.walletList,
+                                }}
                             />
                         </>
                     )}
                 </Card>
 
-                {tokenMint && recipient && (
+                {tokenMint && selectedRecipients.size > 0 && (
                     <Card>
-                        <Text style={styles.sectionTitle}>Minting Details</Text>
-                        <View style={styles.recipientSummary}>
-                            <Text style={styles.recipientLabel}>Selected Recipient:</Text>
-                            <WalletAddress address={recipient} />
+                        <Text style={styles.sectionTitle}>Minting Summary</Text>
+                        <View style={styles.summaryContainer}>
+                            <Text style={styles.summaryText}>
+                                Selected Recipients: {selectedRecipients.size}
+                            </Text>
+                            {Array.from(selectedRecipients).map(wallet => {
+                                const amount = recipientAmounts.get(wallet) || '0';
+                                return (
+                                    <View key={wallet} style={styles.summaryRow}>
+                                        <WalletAddress address={wallet} />
+                                        <Text style={styles.summaryAmount}>
+                                            {amount ? `${parseFloat(amount).toFixed(2)}` : '—'} tokens
+                                        </Text>
+                                    </View>
+                                );
+                            })}
                         </View>
-                        <Input
-                            label="Amount (tokens)"
-                            value={amount}
-                            onChangeText={setAmount}
-                            placeholder="e.g., 1000"
-                            keyboardType="numeric"
-                        />
                         <View style={styles.infoBox}>
                             <Text style={styles.infoText}>
-                                ⚠️ The recipient wallet must be on the allowlist before minting.
+                                ⚠️ All recipient wallets must be on the allowlist. Tokens will be minted sequentially.
                             </Text>
                         </View>
                         <Button
-                            title="Mint Tokens"
+                            title={`Mint to ${selectedRecipients.size} Wallet${selectedRecipients.size > 1 ? 's' : ''}`}
                             onPress={mintTokens}
                             loading={loading}
                             variant="success"
@@ -278,14 +396,14 @@ export default function MintTokens() {
                 <Card>
                     <Text style={styles.sectionTitle}>How to Mint Tokens</Text>
                     <View style={styles.stepContainer}>
-                        <Text style={styles.stepText}>1. Enter the token mint address</Text>
-                        <Text style={styles.stepText}>2. Verify recipient is on allowlist</Text>
-                        <Text style={styles.stepText}>3. Enter amount in whole tokens (not lamports)</Text>
-                        <Text style={styles.stepText}>4. Click "Mint Tokens" to execute</Text>
-                        <Text style={styles.stepText}>5. Transaction will be confirmed on-chain</Text>
+                        <Text style={styles.stepText}>1. Select a token from the list above</Text>
+                        <Text style={styles.stepText}>2. Check the box(es) for recipient wallet(s)</Text>
+                        <Text style={styles.stepText}>3. Enter amount for each selected wallet</Text>
+                        <Text style={styles.stepText}>4. Review the summary and click "Mint to X Wallets"</Text>
+                        <Text style={styles.stepText}>5. Tokens will be minted sequentially to each wallet</Text>
                     </View>
                 </Card>
-            </ScrollView>
+            </CustomList>
         </>
     );
 }
@@ -480,6 +598,71 @@ const styles = StyleSheet.create({
         color: theme.colors.text.secondary,
         marginBottom: theme.spacing.xs,
         fontWeight: theme.typography.fontWeight.medium,
+    },
+    recipientCard: {
+        marginBottom: theme.spacing.md,
+    },
+    checkboxContainer: {
+        marginRight: theme.spacing.md,
+    },
+    checkbox: {
+        width: 24,
+        height: 24,
+        borderWidth: 2,
+        borderColor: theme.colors.border.default,
+        borderRadius: 4,
+        backgroundColor: theme.colors.background.secondary,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkboxSelected: {
+        backgroundColor: theme.colors.success.default,
+        borderColor: theme.colors.success.default,
+    },
+    checkboxCheckmark: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    walletDetails: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: theme.spacing.sm,
+    },
+    amountInputContainer: {
+        marginTop: theme.spacing.sm,
+        paddingLeft: theme.spacing.lg,
+    },
+    amountInput: {
+        marginBottom: 0,
+    },
+    summaryContainer: {
+        backgroundColor: theme.colors.background.secondary,
+        borderWidth: 1,
+        borderColor: theme.colors.border.default,
+        borderRadius: 8,
+        padding: theme.spacing.md,
+        marginBottom: theme.spacing.md,
+    },
+    summaryText: {
+        fontSize: theme.typography.fontSize.base,
+        fontWeight: theme.typography.fontWeight.semibold,
+        color: theme.colors.text.primary,
+        marginBottom: theme.spacing.md,
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: theme.spacing.sm,
+        paddingVertical: theme.spacing.xs,
+    },
+    summaryAmount: {
+        fontSize: theme.typography.fontSize.base,
+        fontWeight: theme.typography.fontWeight.medium,
+        color: theme.colors.success.default,
+        marginLeft: theme.spacing.sm,
     },
 });
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { Card, Button, Badge } from './index';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Card, Button, Badge, CustomList } from './index';
 import { theme } from '../constants';
 import { api } from '../services/api';
 import type { Security } from '../services/handlers/token.handler';
@@ -116,11 +116,13 @@ export default function SecuritySelector({
                     <Text style={styles.emptyStateText}>{emptyMessage}</Text>
                 </View>
             ) : (
-                <FlatList
-                    data={securities}
-                    renderItem={renderSecurityItem}
-                    keyExtractor={(item) => item.id}
-                    scrollEnabled={false}
+                <CustomList
+                    flatListProps={{
+                        data: securities,
+                        renderItem: renderSecurityItem,
+                        keyExtractor: (item) => item.id,
+                        scrollEnabled: false,
+                    }}
                 />
             )}
 
@@ -164,7 +166,7 @@ const styles = StyleSheet.create({
     },
     securityItemSelected: {
         borderColor: theme.colors.primary.default,
-        backgroundColor: theme.colors.primary.light,
+        backgroundColor: theme.colors.primary.dark,
     },
     securityInfo: {
         flex: 1,

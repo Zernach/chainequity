@@ -9,12 +9,11 @@ import {
     Text,
     StyleSheet,
 } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../hooks/useAuth';
 import { useWalletConnection, formatWalletAddress } from '../hooks/useWalletConnection';
 import { requestNonce, generateSignatureMessage } from '../services/auth';
-import { Button, LoadingSpinner, Card, Badge, Input, AlertModal } from '../components';
+import { Button, LoadingSpinner, Card, Badge, Input, AlertModal, CustomList } from '../components';
 import { theme } from '../constants';
 import { useAlertModal } from '../hooks';
 
@@ -152,7 +151,7 @@ export default function LinkWalletScreen() {
                 buttons={alertState.buttons}
                 onClose={hideAlert}
             />
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <CustomList scrollViewProps={{ contentContainerStyle: styles.scrollContent }}>
                 <View style={styles.header}>
                     <Text style={styles.title}>Link Your Wallet</Text>
                     <Text style={styles.subtitle}>
@@ -367,7 +366,7 @@ export default function LinkWalletScreen() {
                     variant="secondary"
                     style={styles.button}
                 />
-            </ScrollView>
+            </CustomList>
         </>
     );
 }

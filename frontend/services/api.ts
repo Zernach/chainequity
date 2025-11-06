@@ -109,6 +109,10 @@ class APIClient {
         return this.tokens.getWalletHoldings(walletAddress);
     }
 
+    async getAllTokenHoldings() {
+        return this.tokens.getAllTokenHoldings();
+    }
+
     // ==================== Allowlist ====================
     async approveWallet(data: ApproveWalletRequest) {
         return this.allowlist.approveWallet(data);

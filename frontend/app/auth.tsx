@@ -11,12 +11,11 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../hooks/useAuth';
 import { useWalletConnection, formatWalletAddress } from '../hooks/useWalletConnection';
 import { generateSignatureMessage, requestNonce } from '../services/auth';
-import { Button, LoadingSpinner, Card, AlertModal } from '../components';
+import { Button, LoadingSpinner, Card, AlertModal, CustomList } from '../components';
 import { theme } from '../constants';
 import { useAlertModal } from '../hooks';
 
@@ -103,9 +102,11 @@ export default function AuthScreen() {
                 style={styles.container}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
-                <ScrollView
-                    contentContainerStyle={styles.scrollContent}
-                    keyboardShouldPersistTaps="handled"
+                <CustomList
+                    scrollViewProps={{
+                        contentContainerStyle: styles.scrollContent,
+                        keyboardShouldPersistTaps: "handled",
+                    }}
                 >
                     <View style={styles.header}>
                         <Text style={styles.title}>{'🔗 ChainEquity'}</Text>
@@ -145,7 +146,7 @@ export default function AuthScreen() {
                     <Text style={styles.footer}>
                         By continuing, you agree to our Terms of Service and Privacy Policy
                     </Text>
-                </ScrollView>
+                </CustomList>
             </KeyboardAvoidingView>
         </>
     );
@@ -221,6 +222,7 @@ const styles = StyleSheet.create({
         marginTop: theme.spacing.md,
         fontSize: 16,
         color: theme.colors.text.secondary,
+        textAlign: 'center',
     },
 });
 

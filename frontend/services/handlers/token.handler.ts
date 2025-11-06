@@ -95,5 +95,27 @@ export class TokenHandler extends BaseClient {
     }> {
         return this.get(`/holdings/${walletAddress}`, true);
     }
+
+    /**
+     * Get all token holdings across all wallets (admin only)
+     */
+    async getAllTokenHoldings(): Promise<{
+        success: boolean;
+        holdings: Array<{
+            mint: string;
+            symbol: string;
+            name: string;
+            decimals: number;
+            totalSupply: number;
+            holders: Array<{
+                walletAddress: string;
+                balance: number;
+                percentage: number;
+            }>;
+        }>;
+        count: number;
+    }> {
+        return this.get('/admin/holdings/all', true);
+    }
 }
 

@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { theme } from '../constants/theme';
 
@@ -9,10 +8,11 @@ import {
     Card,
     Badge,
     Button,
+    CustomList,
 } from '../components';
 
 // Hooks
-import { useWebSocketConnection, useAuth, useTokenHoldings } from '../hooks';
+import { useAuth, useTokenHoldings, useAllTokenHoldings } from '../hooks';
 
 export default function HomeScreen() {
     const router = useRouter();
@@ -21,8 +21,8 @@ export default function HomeScreen() {
     const { user, isAuthenticated, loading: authLoading } = useAuth();
 
     // Custom hooks for state management
-    const { connected, messages, sendTestMessage } = useWebSocketConnection();
     const { holdings, loading: holdingsLoading, refetch: refetchHoldings } = useTokenHoldings(user?.wallet_address || null);
+    const { holdings: allHoldings, loading: allHoldingsLoading, refetch: refetchAllHoldings } = useAllTokenHoldings(user?.role === 'admin');
 
     // Redirect to auth if not authenticated
     useEffect(() => {
@@ -47,7 +47,7 @@ export default function HomeScreen() {
     }
 
     return (
-        <ScrollView style={styles.container}>
+        <CustomList scrollViewProps={{ style: styles.container }}>
             {/* User Profile Card */}
             <Card style={styles.profileCard}>
                 <View style={styles.profileHeader}>
@@ -129,7 +129,78 @@ export default function HomeScreen() {
                 )}
             </Card>
 
-        </ScrollView>
+            {/* All Token Holdings Card (Admin Only) */}
+            {user.role === 'admin' && (
+                <Card>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>All Token Holdings</Text>
+                        <TouchableOpacity onPress={refetchAllHoldings} disabled={allHoldingsLoading}>
+                            <Text style={styles.refreshText}>
+                                {allHoldingsLoading ? '⟳' : '↻'} Refresh
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {allHoldings.length === 0 ? (
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyStateText}>
+                                {allHoldingsLoading ? 'Loading all holdings...' : 'No tokens have been minted yet'}
+                            </Text>
+                            {!allHoldingsLoading && (
+                                <Text style={styles.emptyStateHint}>
+                                    Initialize a token and mint some tokens to see holdings here
+                                </Text>
+                            )}
+                        </View>
+                    ) : (
+                        <View style={styles.allHoldingsList}>
+                            {allHoldings.map((tokenHolding) => (
+                                <View key={tokenHolding.mint} style={styles.tokenSection}>
+                                    {/* Token Header */}
+                                    <View style={styles.tokenHeader}>
+                                        <View style={styles.tokenHeaderInfo}>
+                                            <Text style={styles.tokenSymbol}>{tokenHolding.symbol}</Text>
+                                            <Text style={styles.tokenName}>{tokenHolding.name}</Text>
+                                        </View>
+                                        <View style={styles.tokenSupplyInfo}>
+                                            <Text style={styles.tokenSupplyLabel}>Total Supply</Text>
+                                            <Text style={styles.tokenSupplyValue}>
+                                                {tokenHolding.totalSupply.toLocaleString()} {tokenHolding.symbol}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    {/* Holders List */}
+                                    <View style={styles.holdersList}>
+                                        <Text style={styles.holdersListTitle}>
+                                            Holders ({tokenHolding.holders.length})
+                                        </Text>
+                                        {tokenHolding.holders.map((holder) => (
+                                            <View key={holder.walletAddress} style={styles.holderItem}>
+                                                <View style={styles.holderInfo}>
+                                                    <Text style={styles.holderWallet} numberOfLines={1} ellipsizeMode="middle">
+                                                        {holder.walletAddress.substring(0, 8)}...{holder.walletAddress.substring(holder.walletAddress.length - 6)}
+                                                    </Text>
+                                                    <Text style={styles.holderBalance}>
+                                                        {holder.balance.toLocaleString()} {tokenHolding.symbol}
+                                                    </Text>
+                                                </View>
+                                                <View style={styles.holderPercentageContainer}>
+                                                    <Text style={styles.holderPercentage}>
+                                                        {holder.percentage.toFixed(2)}%
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+                </Card>
+            )}
+
+        </CustomList>
     );
 }
 
@@ -280,5 +351,98 @@ const styles = StyleSheet.create({
         fontSize: theme.typography.fontSize.sm,
         color: theme.colors.success.default,
         fontWeight: theme.typography.fontWeight.medium,
+    },
+    allHoldingsList: {
+        gap: theme.spacing.xl,
+    },
+    tokenSection: {
+        backgroundColor: theme.colors.background.secondary,
+        borderRadius: 12,
+        padding: theme.spacing.md,
+        borderWidth: 1,
+        borderColor: theme.colors.border.default,
+    },
+    tokenHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: theme.spacing.md,
+        paddingBottom: theme.spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border.default,
+    },
+    tokenHeaderInfo: {
+        flex: 1,
+    },
+    tokenSymbol: {
+        fontSize: theme.typography.fontSize.xl,
+        fontWeight: theme.typography.fontWeight.bold,
+        color: theme.colors.text.primary,
+        marginBottom: theme.spacing.xs,
+    },
+    tokenName: {
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.text.secondary,
+    },
+    tokenSupplyInfo: {
+        alignItems: 'flex-end',
+    },
+    tokenSupplyLabel: {
+        fontSize: theme.typography.fontSize.xs,
+        color: theme.colors.text.tertiary,
+        marginBottom: theme.spacing.xs,
+    },
+    tokenSupplyValue: {
+        fontSize: theme.typography.fontSize.base,
+        fontWeight: theme.typography.fontWeight.semibold,
+        color: theme.colors.text.primary,
+    },
+    holdersList: {
+        gap: theme.spacing.sm,
+    },
+    holdersListTitle: {
+        fontSize: theme.typography.fontSize.sm,
+        fontWeight: theme.typography.fontWeight.semibold,
+        color: theme.colors.text.secondary,
+        marginBottom: theme.spacing.xs,
+    },
+    holderItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: theme.spacing.sm,
+        paddingHorizontal: theme.spacing.sm,
+        backgroundColor: theme.colors.background.primary,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: theme.colors.border.default,
+    },
+    holderInfo: {
+        flex: 1,
+        marginRight: theme.spacing.md,
+    },
+    holderWallet: {
+        fontSize: theme.typography.fontSize.sm,
+        fontWeight: theme.typography.fontWeight.medium,
+        color: theme.colors.text.primary,
+        fontFamily: 'monospace',
+        marginBottom: theme.spacing.xs,
+    },
+    holderBalance: {
+        fontSize: theme.typography.fontSize.xs,
+        color: theme.colors.text.secondary,
+    },
+    holderPercentageContainer: {
+        backgroundColor: theme.colors.success.bg,
+        paddingHorizontal: theme.spacing.sm,
+        paddingVertical: 4,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: theme.colors.success.dark,
+    },
+    holderPercentage: {
+        fontSize: theme.typography.fontSize.sm,
+        fontWeight: theme.typography.fontWeight.bold,
+        color: theme.colors.success.default,
     },
 });

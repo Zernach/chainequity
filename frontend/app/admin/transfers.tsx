@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
-import { Card, Button, Input, Badge, AlertModal } from '../../components';
+import { View, Text, StyleSheet } from 'react-native';
+import { Card, Button, Input, Badge, AlertModal, CustomList } from '../../components';
 import { theme } from '../../constants';
 import { api } from '../../services/api';
 import { useAlertModal } from '../../hooks';
@@ -123,7 +122,7 @@ export default function TransactionHistory() {
                 buttons={alertState.buttons}
                 onClose={hideAlert}
             />
-            <ScrollView style={styles.container}>
+            <CustomList scrollViewProps={{ style: styles.container }}>
                 <Card>
                     <Text style={styles.title}>Transaction History</Text>
                     <Text style={styles.description}>
@@ -155,11 +154,13 @@ export default function TransactionHistory() {
                             No transfers found. Load a token mint to view transaction history.
                         </Text>
                     ) : (
-                        <FlatList
-                            data={transfers}
-                            renderItem={renderTransfer}
-                            keyExtractor={(item) => item.signature}
-                            scrollEnabled={false}
+                        <CustomList
+                            flatListProps={{
+                                data: transfers,
+                                renderItem: renderTransfer,
+                                keyExtractor: (item) => item.signature,
+                                scrollEnabled: false,
+                            }}
                         />
                     )}
                 </Card>
@@ -183,7 +184,7 @@ export default function TransactionHistory() {
                         </Text>
                     </View>
                 </Card>
-            </ScrollView>
+            </CustomList>
         </>
     );
 }
