@@ -111,7 +111,7 @@ export default function AuthScreen() {
                     <View style={styles.header}>
                         <Text style={styles.title}>{'🔗 ChainEquity'}</Text>
                         <Text style={styles.subtitle}>
-                            Connect your wallet to get started
+                            {'Capitalization Table Management on Solana Blockchain'}
                         </Text>
                     </View>
 
@@ -119,7 +119,7 @@ export default function AuthScreen() {
                     <Card style={styles.card}>
                         <Text style={styles.cardTitle}>Wallet Authentication</Text>
                         <Text style={styles.walletDescription}>
-                            Sign in or create an account using your Solana wallet
+                            Connect your Solana wallet to get started
                         </Text>
 
                         {walletConnected && walletAddress && (

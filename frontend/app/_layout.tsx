@@ -23,7 +23,7 @@ export default function RootLayout() {
                             <Stack.Screen
                                 name="auth"
                                 options={{
-                                    header: () => <Header title="Authentication" subtitle="Sign in or create an account" showBackButton={true} />,
+                                    header: () => <Header title="Authentication" subtitle="Connect your Solana wallet to get started" showBackButton={true} />,
                                 }}
                             />
                             <Stack.Screen
