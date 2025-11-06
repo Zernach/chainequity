@@ -166,6 +166,69 @@ export async function checkAllowlistStatus(req: AuthRequest, res: Response) {
 }
 
 /**
+ * Get token balance for a specific mint and wallet
+ * GET /token/:mintAddress/balance/:walletAddress
+ */
+export async function getTokenBalance(req: AuthRequest, res: Response) {
+    try {
+        const { mintAddress, walletAddress } = req.params;
+
+        console.log('[Balance] Fetching balance for:', { mintAddress, walletAddress });
+
+        // First get the security
+        const { data: security, error: securityError } = await supabaseAdmin
+            .from('securities')
+            .select('id, symbol, name, decimals')
+            .eq('mint_address', mintAddress)
+            .single();
+
+        if (securityError || !security) {
+            console.error('[Balance] Security not found:', securityError);
+            return res.status(404).json({
+                success: false,
+                error: 'Token not found',
+            });
+        }
+
+        // Query token balance
+        const { data, error } = await supabaseAdmin
+            .from('token_balances')
+            .select('balance')
+            .eq('security_id', security.id)
+            .eq('wallet_address', walletAddress)
+            .single();
+
+        if (error && error.code !== 'PGRST116') {
+            console.error('[Balance] Database error:', error);
+            throw error;
+        }
+
+        // If no balance found, return 0
+        const balance = data?.balance || 0;
+
+        console.log('[Balance] Found balance:', balance);
+
+        return res.json({
+            success: true,
+            balance: {
+                mint: mintAddress,
+                wallet: walletAddress,
+                amount: balance.toString(),
+                decimals: security.decimals,
+                symbol: security.symbol,
+                name: security.name,
+            },
+        });
+    } catch (error) {
+        console.error('[Balance] Error fetching token balance:', error);
+        return res.status(500).json({
+            success: false,
+            error: (error as Error).message,
+        });
+    }
+}
+
+/**
  * Get token holdings for a wallet
  * GET /holdings/:walletAddress
  */

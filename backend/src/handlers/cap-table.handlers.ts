@@ -122,6 +122,12 @@ export async function getTransfers(req: AuthRequest, res: Response) {
 
         const result = await getTransferHistory(mintAddress, options);
 
+        console.log('[Transfers] Transfer history result:', {
+            transferCount: result.transfers.length,
+            total: result.total,
+            mintAddress
+        });
+
         res.json({
             success: true,
             data: result,
@@ -191,7 +197,7 @@ export async function createSnapshot(req: AuthRequest, res: Response) {
 
         // Import the function dynamically
         const { createCapTableSnapshot } = await import('../cap-table');
-        
+
         const snapshot = await createCapTableSnapshot(mintAddress, block_height, reason);
 
         res.json({
@@ -217,7 +223,7 @@ export async function listSnapshots(req: AuthRequest, res: Response) {
 
         // Import the function dynamically
         const { listCapTableSnapshots } = await import('../cap-table');
-        
+
         const snapshots = await listCapTableSnapshots(mintAddress);
 
         res.json({
@@ -252,7 +258,7 @@ export async function getSnapshot(req: AuthRequest, res: Response) {
 
         // Import the function dynamically
         const { getCapTableSnapshot } = await import('../cap-table');
-        
+
         const snapshot = await getCapTableSnapshot(mintAddress, blockHeightNum);
 
         return res.json({

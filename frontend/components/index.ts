@@ -19,7 +19,5 @@ export { CustomList } from './CustomList';
 
 // Home screen components
 export { Header } from './Header';
-export { UserManagement } from './UserManagement';
-export { UsersList } from './UsersList';
 export { TokenMinting } from './TokenMinting';
 

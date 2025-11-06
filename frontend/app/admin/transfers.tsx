@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Card, Button, Input, Badge, AlertModal, CustomList } from '../../components';
+import { Card, Button, Badge, AlertModal, CustomList } from '../../components';
+import SecuritySelector from '../../components/SecuritySelector';
 import { theme } from '../../constants';
 import { api } from '../../services/api';
 import { useAlertModal } from '../../hooks';
+import type { Security } from '../../services/handlers/token.handler';
 
 interface TokenTransfer {
-    signature: string;
+    transaction_signature: string;
     from_wallet: string;
     to_wallet: string;
     amount: number;
     block_height: number;
-    timestamp: string;
+    block_time: string;
     status: string;
 }
 
@@ -20,26 +22,32 @@ interface TokenTransfer {
  * View token transfer history
  */
 export default function TransactionHistory() {
-    const [tokenMint, setTokenMint] = useState('');
+    const [selectedSecurity, setSelectedSecurity] = useState<Security | null>(null);
     const [transfers, setTransfers] = useState<TokenTransfer[]>([]);
     const [loading, setLoading] = useState(false);
-    const { alertState, hideAlert, error } = useAlertModal();
+    const { alertState, hideAlert, error, warning } = useAlertModal();
 
     const loadTransfers = async () => {
-        if (!tokenMint) {
-            error('Error', 'Please enter a token mint address');
+        if (!selectedSecurity) {
+            error('Error', 'Please select a security first');
             return;
         }
 
         setLoading(true);
         try {
-            const result = await api.getTransferHistory(tokenMint);
-            if (result.success) {
-                setTransfers((result.transfers as unknown as TokenTransfer[]) || []);
+            console.log('[Transfers] Loading transfer history for:', selectedSecurity.mint_address);
+            const result = await api.getTransferHistory(selectedSecurity.mint_address);
+            console.log('[Transfers] API response:', result);
+
+            if (result.success && result.data) {
+                console.log('[Transfers] Transfer data:', result.data);
+                console.log('[Transfers] Transfer count:', result.data.transfers?.length || 0);
+                setTransfers((result.data.transfers as unknown as TokenTransfer[]) || []);
             } else {
-                error('Error', 'Failed to load transfer history');
+                error('Error', result.error || 'Failed to load transfer history');
             }
         } catch (err) {
+            console.error('[Transfers] Error loading transfers:', err);
             error('Error', (err as Error).message);
         } finally {
             setLoading(false);
@@ -50,8 +58,8 @@ export default function TransactionHistory() {
         return (amount / Math.pow(10, 9)).toLocaleString();
     };
 
-    const formatDate = (timestamp: string) => {
-        const date = new Date(timestamp);
+    const formatDate = (blockTime: string) => {
+        const date = new Date(blockTime);
         return date.toLocaleString();
     };
 
@@ -72,7 +80,7 @@ export default function TransactionHistory() {
         <View style={styles.transferRow}>
             <View style={styles.transferHeader}>
                 <Text style={styles.signatureText}>
-                    {item.signature.slice(0, 8)}...{item.signature.slice(-8)}
+                    {item.transaction_signature.slice(0, 8)}...{item.transaction_signature.slice(-8)}
                 </Text>
                 <Badge variant={getStatusColor(item.status) as any}>
                     {item.status}
@@ -106,7 +114,7 @@ export default function TransactionHistory() {
 
                 <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Time:</Text>
-                    <Text style={styles.detailValue}>{formatDate(item.timestamp)}</Text>
+                    <Text style={styles.detailValue}>{formatDate(item.block_time)}</Text>
                 </View>
             </View>
         </View>
@@ -130,40 +138,50 @@ export default function TransactionHistory() {
                     </Text>
                 </Card>
 
+                <SecuritySelector
+                    onSecuritySelected={setSelectedSecurity}
+                    selectedSecurity={selectedSecurity}
+                    onError={error}
+                    onWarning={warning}
+                />
+
                 <Card>
-                    <Text style={styles.sectionTitle}>Token Configuration</Text>
-                    <Input
-                        label="Token Mint Address"
-                        value={tokenMint}
-                        onChangeText={setTokenMint}
-                        placeholder="Enter token mint address"
-                    />
                     <Button
                         title="Load Transfers"
                         onPress={loadTransfers}
                         loading={loading}
+                        disabled={!selectedSecurity}
                     />
                 </Card>
 
-                <Card>
-                    <Text style={styles.sectionTitle}>
-                        Transfer History ({transfers.length})
-                    </Text>
-                    {transfers.length === 0 ? (
-                        <Text style={styles.emptyText}>
-                            No transfers found. Load a token mint to view transaction history.
+                {selectedSecurity && (
+                    <Card>
+                        <Text style={styles.sectionTitle}>
+                            Transfer History ({transfers.length})
                         </Text>
-                    ) : (
-                        <CustomList
-                            flatListProps={{
-                                data: transfers,
-                                renderItem: renderTransfer,
-                                keyExtractor: (item) => item.signature,
-                                scrollEnabled: false,
-                            }}
-                        />
-                    )}
-                </Card>
+                        {transfers.length === 0 ? (
+                            <View>
+                                <Text style={styles.emptyText}>
+                                    No transfers recorded yet for this token.
+                                </Text>
+                                <View style={styles.infoBox}>
+                                    <Text style={styles.infoText}>
+                                        💡 Transfer records are created when tokens are moved between wallets using the gated token program's transfer instruction. Direct minting doesn't create transfer records.
+                                    </Text>
+                                </View>
+                            </View>
+                        ) : (
+                            <CustomList
+                                flatListProps={{
+                                    data: transfers,
+                                    renderItem: renderTransfer,
+                                    keyExtractor: (item) => item.transaction_signature,
+                                    scrollEnabled: false,
+                                }}
+                            />
+                        )}
+                    </Card>
+                )}
 
                 <Card>
                     <Text style={styles.sectionTitle}>About Transaction History</Text>

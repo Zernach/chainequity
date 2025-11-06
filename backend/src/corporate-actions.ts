@@ -1,5 +1,5 @@
 import { Keypair } from '@solana/web3.js';
-import { supabase } from './db';
+import { supabaseAdmin } from './db';
 import { logger } from './utils/logger';
 
 export interface StockSplitParams {
@@ -44,7 +44,7 @@ export async function executeStockSplit(params: StockSplitParams): Promise<Stock
 
     try {
         // 1. Get all current holders from database
-        const { data: security, error: securityError } = await supabase
+        const { data: security, error: securityError } = await supabaseAdmin
             .from('securities')
             .select('id, decimals')
             .eq('mint_address', tokenMint)
@@ -55,7 +55,7 @@ export async function executeStockSplit(params: StockSplitParams): Promise<Stock
             throw new Error(`Security not found for mint address: ${tokenMint}. Please ensure the token is initialized in the database first.`);
         }
 
-        const { data: holders } = await supabase
+        const { data: holders } = await supabaseAdmin
             .from('token_balances')
             .select('wallet_address, balance')
             .eq('security_id', security.id)
@@ -76,7 +76,7 @@ export async function executeStockSplit(params: StockSplitParams): Promise<Stock
         logger.info('Stock split - new mint generated', { newMint });
 
         // 3. Store corporate action in database
-        const { error: actionError } = await supabase.from('corporate_actions').insert({
+        const { error: actionError } = await supabaseAdmin.from('corporate_actions').insert({
             security_id: security.id,
             action_type: 'stock_split',
             parameters: {
@@ -94,7 +94,7 @@ export async function executeStockSplit(params: StockSplitParams): Promise<Stock
         }
 
         // 4. Create new security record
-        const { error: newSecurityError } = await supabase.from('securities').insert({
+        const { error: newSecurityError } = await supabaseAdmin.from('securities').insert({
             mint_address: newMint,
             symbol: newSymbol,
             name: newName,
@@ -112,7 +112,7 @@ export async function executeStockSplit(params: StockSplitParams): Promise<Stock
         }
 
         // 5. Get the new security ID
-        const { data: newSecurity } = await supabase
+        const { data: newSecurity } = await supabaseAdmin
             .from('securities')
             .select('id')
             .eq('mint_address', newMint)
@@ -132,7 +132,7 @@ export async function executeStockSplit(params: StockSplitParams): Promise<Stock
             const newBalance = oldBalance * splitRatio;
 
             // Insert new balance record
-            await supabase.from('token_balances').upsert({
+            await supabaseAdmin.from('token_balances').upsert({
                 security_id: newSecurity.id,
                 wallet_address: holder.wallet_address,
                 balance: newBalance,
@@ -149,19 +149,19 @@ export async function executeStockSplit(params: StockSplitParams): Promise<Stock
 
         // 8. Update new security total supply
         const totalNewSupply = (holders || []).reduce((sum, h) => sum + (Number(h.balance) * splitRatio), 0);
-        await supabase
+        await supabaseAdmin
             .from('securities')
             .update({ current_supply: totalNewSupply, total_supply: totalNewSupply })
             .eq('id', newSecurity.id);
 
         // 9. Mark old security as inactive
-        await supabase
+        await supabaseAdmin
             .from('securities')
             .update({ is_active: false, replaced_by: newMint })
             .eq('mint_address', tokenMint);
 
         // 10. Update corporate action status
-        await supabase
+        await supabaseAdmin
             .from('corporate_actions')
             .update({ status: 'completed' })
             .eq('security_id', security.id)
@@ -196,7 +196,7 @@ export async function executeStockSplit(params: StockSplitParams): Promise<Stock
  */
 async function copyAllowlistToNewToken(oldSecurityId: string, newSecurityId: string): Promise<void> {
     // Get all approved wallets from old security
-    const { data: allowlist } = await supabase
+    const { data: allowlist } = await supabaseAdmin
         .from('allowlist')
         .select('wallet_address, approved_by')
         .eq('security_id', oldSecurityId)
@@ -215,7 +215,7 @@ async function copyAllowlistToNewToken(oldSecurityId: string, newSecurityId: str
         approved_by: entry.approved_by,
     }));
 
-    const { error } = await supabase.from('allowlist').insert(newEntries);
+    const { error } = await supabaseAdmin.from('allowlist').insert(newEntries);
 
     if (error) {
         logger.error('Failed to copy allowlist', error as any);
@@ -234,7 +234,7 @@ export async function changeTokenSymbol(params: SymbolChangeParams): Promise<Sym
 
     try {
         // Get security
-        const { data: security, error: securityError } = await supabase
+        const { data: security, error: securityError } = await supabaseAdmin
             .from('securities')
             .select('id, symbol, name')
             .eq('mint_address', tokenMint)
@@ -249,7 +249,7 @@ export async function changeTokenSymbol(params: SymbolChangeParams): Promise<Sym
         const oldName = security.name;
 
         // Update database (in production, would also call on-chain instruction)
-        const { error: updateError } = await supabase
+        const { error: updateError } = await supabaseAdmin
             .from('securities')
             .update({ symbol: newSymbol, name: newName })
             .eq('mint_address', tokenMint);
@@ -260,7 +260,7 @@ export async function changeTokenSymbol(params: SymbolChangeParams): Promise<Sym
         }
 
         // Record corporate action
-        const { error: actionError } = await supabase.from('corporate_actions').insert({
+        const { error: actionError } = await supabaseAdmin.from('corporate_actions').insert({
             security_id: security.id,
             action_type: 'symbol_change',
             parameters: {
@@ -300,7 +300,7 @@ export async function changeTokenSymbol(params: SymbolChangeParams): Promise<Sym
 // @ts-ignore - Utility function for future use
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getSecurityId(mintAddress: string): Promise<string> {
-    const { data } = await supabase
+    const { data } = await supabaseAdmin
         .from('securities')
         .select('id')
         .eq('mint_address', mintAddress)

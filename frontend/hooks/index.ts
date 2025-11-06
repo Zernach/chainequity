@@ -16,7 +16,6 @@ export { useToast } from './useToast';
 export { useNetwork } from '../contexts/NetworkContext';
 
 // Home screen hooks
-export { useUsers } from './useUsers';
 export { useWebSocketConnection } from './useWebSocketConnection';
 export { useTokenMint } from './useTokenMint';
 export { useTokenHoldings } from './useTokenHoldings';

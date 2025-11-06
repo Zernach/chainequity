@@ -63,9 +63,12 @@ export interface TokenMetadata {
 }
 
 export interface TokenBalance {
+    mint: string;
     wallet: string;
-    balance: string;
-    ownership_percentage: number;
+    amount: string;
+    decimals: number;
+    symbol: string;
+    name: string;
 }
 
 // Allowlist types
@@ -103,19 +106,23 @@ export interface MintTokenResponse {
 
 // Transfer types
 export interface Transfer {
-    signature: string;
-    from: string;
-    to: string;
-    amount: string;
+    transaction_signature: string;
+    from_wallet: string;
+    to_wallet: string;
+    amount: number;
     block_height: number;
-    timestamp: string;
+    block_time: string;
     status: 'pending' | 'confirmed' | 'failed';
 }
 
 export interface TransferHistoryResponse {
     success: boolean;
-    transfers: Transfer[];
-    count: number;
+    data: {
+        transfers: Transfer[];
+        total: number;
+        limit: number;
+        offset: number;
+    };
     error?: string;
 }
 

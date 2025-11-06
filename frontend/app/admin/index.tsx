@@ -62,36 +62,15 @@ export default function AdminDashboard() {
             </Card>
 
             <Card style={styles.sectionCard}>
-                <Text style={styles.sectionTitle}>User Management</Text>
-                <Text style={styles.sectionDescription}>
-                    Create and manage user accounts
-                </Text>
-                <Button
-                    title="Manage Users"
-                    onPress={() => router.push('/admin/users' as any)}
-                    variant="primary"
-                />
-            </Card>
-
-            <Card style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Reports & Analytics</Text>
                 <Text style={styles.sectionDescription}>
-                    View cap tables and transaction history
+                    View transaction history
                 </Text>
-                <View style={styles.buttonRow}>
-                    <Button
-                        title="Cap Table"
-                        onPress={() => router.push('/admin/cap-table')}
-                        variant="secondary"
-                        style={styles.halfButton}
-                    />
-                    <Button
-                        title="Transactions"
-                        onPress={() => router.push('/admin/transfers' as any)}
-                        variant="secondary"
-                        style={styles.halfButton}
-                    />
-                </View>
+                <Button
+                    title="Transactions"
+                    onPress={() => router.push('/admin/transfers' as any)}
+                    variant="primary"
+                />
             </Card>
         </CustomList>
     );

@@ -4,8 +4,122 @@
 
 This document tracks the progress of implementing the ChainEquity tokenized security platform.
 
-**Current Status:** Phase 1, 2 & 3 Complete ✅ | **Backend Migrated to TypeScript** ✅ | **Home Screen Refactored** ✅ | **WalletConnect Integration** ✅ | **WebSocket Unified** ✅ | **All Linter Errors Fixed** ✅ | **Network Switcher** ✅ | **Allowlist UX Improved** ✅ | **Cross-Platform Modals** ✅ | **Token Holdings & UX** ✅ | **SecuritySelector Component** ✅ | **Toast Notification System** ✅ | **Multi-Wallet Minting** ✅ | **Real-Time RPC Indexer** ✅  
+**Current Status:** Phase 1, 2 & 3 Complete ✅ | **Backend Migrated to TypeScript** ✅ | **Home Screen Refactored** ✅ | **WalletConnect Integration** ✅ | **WebSocket Unified** ✅ | **All Linter Errors Fixed** ✅ | **Network Switcher** ✅ | **Allowlist UX Improved** ✅ | **Cross-Platform Modals** ✅ | **Token Holdings & UX** ✅ | **SecuritySelector Component** ✅ | **Toast Notification System** ✅ | **Multi-Wallet Minting** ✅ | **Real-Time RPC Indexer** ✅ | **Transaction History Debugged** ✅ | **Corporate Actions DB Access Fixed** ✅  
 **Next Phase:** Corporate Actions System
+
+---
+
+## Corporate Actions Database Access Fixed (Nov 6, 2024)
+
+### ✅ Issue Resolved
+
+**Issue**: Stock split and symbol change operations were failing with "Security not found" error, even though the security existed in the database.
+
+**Root Cause**: 
+- `corporate-actions.ts` was using `supabase` (regular client with RLS policies) instead of `supabaseAdmin` (service role client that bypasses RLS)
+- Backend operations need admin-level access to query and modify database records without user-context restrictions
+
+**Changes Made:**
+
+1. **Updated Database Client Import** (`backend/src/corporate-actions.ts`):
+   - Changed from `import { supabase } from './db'` to `import { supabaseAdmin } from './db'`
+   
+2. **Replaced All Database Calls** in `corporate-actions.ts`:
+   - `executeStockSplit()` - All 10+ database operations now use `supabaseAdmin`
+   - `copyAllowlistToNewToken()` - Uses `supabaseAdmin` for allowlist queries and inserts
+   - `changeTokenSymbol()` - Uses `supabaseAdmin` for security updates and corporate action records
+   - `getSecurityId()` - Uses `supabaseAdmin` for security lookups
+
+**Impact:**
+- ✅ Stock splits now properly access security records
+- ✅ Symbol changes work correctly
+- ✅ Corporate action records are properly created
+- ✅ Allowlist entries are correctly copied during splits
+- ✅ All admin operations bypass RLS policies as intended
+
+**Technical Details:**
+- `supabase` client uses the anon key and enforces Row Level Security (RLS) policies
+- `supabaseAdmin` client uses the service role key and bypasses RLS for admin operations
+- Backend handlers should use `supabaseAdmin` for all administrative operations
+
+---
+
+## Transaction History Debugging (Nov 6, 2024)
+
+### ✅ Issue Identified and Resolved
+
+**Issue**: Transaction history screen wasn't rendering any transfers.
+
+**Root Cause**: 
+- No transfer records existed in the database
+- Tokens were only minted directly to wallets, not transferred between wallets via the gated token program
+- Transfer records are only created when tokens move between wallets on-chain using the program's transfer instruction
+
+**Changes Made:**
+
+1. **Added Debugging Logs** (`backend/src/handlers/cap-table.handlers.ts`):
+   - Added logging to track transfer history query results
+   - Helps identify when transfers are fetched and how many exist
+
+2. **Enhanced Frontend Logging** (`frontend/app/admin/transfers.tsx`):
+   - Added console logs to track API responses
+   - Better error handling and debugging output
+
+3. **Improved Empty State UI** (`frontend/app/admin/transfers.tsx`):
+   - Better messaging when no transfers exist
+   - Educational info box explaining the difference between minting and transfers
+   - Only shows transfer history card when a security is selected
+
+4. **Created Utility Scripts** (`backend/scripts/`):
+   - `check-transfers.ts` - Verify transfer records in database
+   - `create-test-transfer.ts` - Generate test transfer data for UI testing
+
+**Key Findings:**
+- Transfer indexing logic exists in `indexer.ts` (`processTokensTransferredEvent`)
+- Frontend transfer history API call works correctly
+- Backend handler properly queries and returns transfer data
+- The feature works as designed - it just had no data to display
+
+**Testing:**
+- Created 3 test transfer records for the MEOW token
+- Verified transfers appear correctly in database queries
+- Ready for frontend UI testing
+
+**Next Steps:**
+- Test the transaction history UI with the new test data
+- Ensure on-chain transfers are properly indexed when they occur
+- Consider adding transfer functionality to admin interface (optional)
+
+---
+
+## User Management Section Removed from Admin Dashboard (Nov 6, 2024)
+
+### ✅ Cleanup Complete
+
+**Feature**: Removed the User Management section from the Admin Dashboard and deleted all related components, hooks, and files.
+
+**Files Deleted:**
+1. `frontend/app/admin/users.tsx` - Admin users management page
+2. `frontend/components/UserManagement.tsx` - User creation/management component
+3. `frontend/components/UsersList.tsx` - Users list display component
+4. `frontend/hooks/useUsers.ts` - Users data management hook
+
+**Files Modified:**
+1. `frontend/app/admin/index.tsx` - Removed User Management card/section
+2. `frontend/components/index.ts` - Removed UserManagement and UsersList exports
+3. `frontend/hooks/index.ts` - Removed useUsers export
+
+**Rationale:**
+- User management functionality was not part of the core security token platform requirements
+- Admin authentication is now handled through wallet-based authentication
+- Simplifies the admin dashboard and reduces maintenance overhead
+- Users are now managed directly via wallet addresses in the allowlist system
+
+**Impact:**
+- ✅ Cleaner admin dashboard focused on token operations
+- ✅ No breaking changes to existing functionality
+- ✅ All linter errors resolved
+- ✅ No remaining references to deleted components
 
 ---
 

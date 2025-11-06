@@ -11,7 +11,7 @@ export class TransfersHandler extends BaseClient {
      * Get transfer history for a token
      */
     async getTransferHistory(tokenMint: string): Promise<TransferHistoryResponse> {
-        return this.get<TransferHistoryResponse>(`/admin/transfers/${tokenMint}`, true);
+        return this.get<TransferHistoryResponse>(`/transfers/${tokenMint}`, true);
     }
 }
 

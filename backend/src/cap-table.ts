@@ -1,4 +1,4 @@
-import { supabase } from './db';
+import { supabaseAdmin } from './db';
 import { logger } from './utils/logger';
 import { validatePublicKey } from './utils/validators';
 import {
@@ -35,7 +35,7 @@ export async function generateCapTable(
     }
 
     // Get security from mint address
-    const { data: security, error: securityError } = await supabase
+    const { data: security, error: securityError } = await supabaseAdmin
         .from('securities')
         .select('*')
         .eq('mint_address', mintAddress)
@@ -55,7 +55,7 @@ export async function generateCapTable(
     }
 
     // Get all token balances at the specified block height
-    let balancesQuery = supabase
+    let balancesQuery = supabaseAdmin
         .from('token_balances')
         .select('wallet_address, balance, block_height, updated_at')
         .eq('security_id', security.id)
@@ -132,7 +132,7 @@ async function enrichWithAllowlistStatus(
         return capTable;
     }
 
-    const { data: allowlistEntries } = await supabase
+    const { data: allowlistEntries } = await supabaseAdmin
         .from('allowlist')
         .select('wallet_address, status, approved_at')
         .eq('security_id', securityId)
@@ -193,7 +193,7 @@ async function getCachedSnapshot(
     securityId: string,
     blockHeight: number
 ): Promise<DbCapTableSnapshot | null> {
-    const { data } = await supabase
+    const { data } = await supabaseAdmin
         .from('cap_table_snapshots')
         .select('*')
         .eq('security_id', securityId)
@@ -214,7 +214,7 @@ async function cacheSnapshot(
 ): Promise<void> {
     const holderCount = capTable.length;
 
-    const { error } = await supabase.from('cap_table_snapshots').upsert(
+    const { error } = await supabaseAdmin.from('cap_table_snapshots').upsert(
         [
             {
                 security_id: securityId,
@@ -299,7 +299,7 @@ export async function getTransferHistory(
     logger.info('Fetching transfer history', { mintAddress, options });
 
     // Get security from mint address
-    const { data: security } = await supabase
+    const { data: security } = await supabaseAdmin
         .from('securities')
         .select('id')
         .eq('mint_address', mintAddress)
@@ -310,7 +310,7 @@ export async function getTransferHistory(
     }
 
     // Build query
-    let query = supabase
+    let query = supabaseAdmin
         .from('transfers')
         .select('*', { count: 'exact' })
         .eq('security_id', security.id)
@@ -344,7 +344,7 @@ export async function getTransferHistory(
  * Get holder count over time
  */
 export async function getHolderCountHistory(mintAddress: string): Promise<any[]> {
-    const { data: security } = await supabase
+    const { data: security } = await supabaseAdmin
         .from('securities')
         .select('id')
         .eq('mint_address', mintAddress)
@@ -354,7 +354,7 @@ export async function getHolderCountHistory(mintAddress: string): Promise<any[]>
         throw new Error(`Security not found: ${mintAddress}`);
     }
 
-    const { data: snapshots } = await supabase
+    const { data: snapshots } = await supabaseAdmin
         .from('cap_table_snapshots')
         .select('block_height, holder_count, created_at')
         .eq('security_id', security.id)
@@ -448,7 +448,7 @@ export async function createCapTableSnapshot(
     }
 
     // Get security from mint address
-    const { data: security, error: securityError } = await supabase
+    const { data: security, error: securityError } = await supabaseAdmin
         .from('securities')
         .select('*')
         .eq('mint_address', mintAddress)
@@ -466,7 +466,7 @@ export async function createCapTableSnapshot(
     const holders = capTable.holders;
 
     // Store snapshot in database
-    const { data: snapshot, error } = await supabase
+    const { data: snapshot, error } = await supabaseAdmin
         .from('cap_table_snapshots')
         .insert([
             {
@@ -490,10 +490,10 @@ export async function createCapTableSnapshot(
         throw error;
     }
 
-    logger.info('Snapshot created successfully', { 
-        snapshotId: snapshot.id, 
+    logger.info('Snapshot created successfully', {
+        snapshotId: snapshot.id,
         blockHeight: snapshotBlockHeight,
-        holderCount: holders.length 
+        holderCount: holders.length
     });
 
     return {
@@ -516,7 +516,7 @@ export async function listCapTableSnapshots(mintAddress: string): Promise<any[]>
     logger.info('Listing cap table snapshots', { mintAddress });
 
     // Get security from mint address
-    const { data: security } = await supabase
+    const { data: security } = await supabaseAdmin
         .from('securities')
         .select('id')
         .eq('mint_address', mintAddress)
@@ -526,7 +526,7 @@ export async function listCapTableSnapshots(mintAddress: string): Promise<any[]>
         throw new Error(`Security not found: ${mintAddress}`);
     }
 
-    const { data: snapshots, error } = await supabase
+    const { data: snapshots, error } = await supabaseAdmin
         .from('cap_table_snapshots')
         .select('id, block_height, slot, total_supply, holder_count, created_at')
         .eq('security_id', security.id)
@@ -552,7 +552,7 @@ export async function getCapTableSnapshot(
     logger.info('Getting cap table snapshot', { mintAddress, blockHeight });
 
     // Get security from mint address
-    const { data: security } = await supabase
+    const { data: security } = await supabaseAdmin
         .from('securities')
         .select('id')
         .eq('mint_address', mintAddress)
@@ -563,7 +563,7 @@ export async function getCapTableSnapshot(
     }
 
     // Try exact match first
-    let { data: snapshot } = await supabase
+    let { data: snapshot } = await supabaseAdmin
         .from('cap_table_snapshots')
         .select('*')
         .eq('security_id', security.id)
@@ -572,7 +572,7 @@ export async function getCapTableSnapshot(
 
     // If no exact match, find nearest snapshot before requested block
     if (!snapshot) {
-        const { data: nearestSnapshot } = await supabase
+        const { data: nearestSnapshot } = await supabaseAdmin
             .from('cap_table_snapshots')
             .select('*')
             .eq('security_id', security.id)

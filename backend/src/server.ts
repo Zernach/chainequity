@@ -89,6 +89,7 @@ app.get('/securities/:mintAddress', authenticateRequest, handlers.getSecurityByM
 app.get('/allowlist/:mintAddress', authenticateRequest, requireRole(['admin', 'issuer']), handlers.getAllowlist);
 app.get('/allowlist/:mintAddress/:walletAddress', authenticateRequest, handlers.checkAllowlistStatus);
 app.get('/holdings/:walletAddress', authenticateRequest, handlers.getWalletHoldings);
+app.get('/token/:mintAddress/balance/:walletAddress', authenticateRequest, handlers.getTokenBalance);
 
 // ============================================================================
 // ADMIN ROUTES

@@ -11,6 +11,12 @@ interface RecipientWithAmount {
     amount: string;
 }
 
+interface WalletBalance {
+    balance: string;
+    loading: boolean;
+    error?: string;
+}
+
 /**
  * Token Minting Screen
  * Mint tokens to approved wallets with multi-select capability
@@ -19,12 +25,47 @@ export default function MintTokens() {
     const [tokenMint, setTokenMint] = useState('');
     const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
     const [recipientAmounts, setRecipientAmounts] = useState<Map<string, string>>(new Map());
+    const [walletBalances, setWalletBalances] = useState<Map<string, WalletBalance>>(new Map());
     const [loading, setLoading] = useState(false);
     const [loadingAllowlist, setLoadingAllowlist] = useState(false);
     const [allowlist, setAllowlist] = useState<AllowlistEntry[]>([]);
     const [showSecuritiesDropdown, setShowSecuritiesDropdown] = useState(false);
     const { alertState, hideAlert, error, success, confirm } = useAlertModal();
     const { securities, loading: loadingSecurities, refetch: refetchSecurities } = useSecurities();
+
+    // Fetch balance for a specific wallet
+    const fetchWalletBalance = async (walletAddress: string, mint: string) => {
+        if (!mint || !walletAddress) return;
+
+        // Set loading state
+        setWalletBalances(prev => new Map(prev).set(walletAddress, {
+            balance: '0',
+            loading: true,
+        }));
+
+        try {
+            const result = await api.getBalance(mint, walletAddress);
+            if (result.success && result.balance !== undefined) {
+                setWalletBalances(prev => new Map(prev).set(walletAddress, {
+                    balance: result.balance.amount, // Extract the amount string from TokenBalance object
+                    loading: false,
+                }));
+            } else {
+                setWalletBalances(prev => new Map(prev).set(walletAddress, {
+                    balance: '0',
+                    loading: false,
+                    error: 'Failed to fetch balance',
+                }));
+            }
+        } catch (err) {
+            console.error('Error fetching balance:', err);
+            setWalletBalances(prev => new Map(prev).set(walletAddress, {
+                balance: '0',
+                loading: false,
+                error: err instanceof Error ? err.message : 'Unknown error',
+            }));
+        }
+    };
 
     // Load allowlist when token is selected
     useEffect(() => {
@@ -33,6 +74,7 @@ export default function MintTokens() {
                 setAllowlist([]);
                 setSelectedRecipients(new Set());
                 setRecipientAmounts(new Map());
+                setWalletBalances(new Map());
                 return;
             }
 
@@ -45,6 +87,11 @@ export default function MintTokens() {
                         entry => entry.status === 'approved'
                     );
                     setAllowlist(approvedWallets);
+
+                    // Fetch balances for all approved wallets
+                    approvedWallets.forEach(entry => {
+                        fetchWalletBalance(entry.wallet_address, tokenMint);
+                    });
                 }
             } catch (err) {
                 console.error('Error loading allowlist:', err);
@@ -309,6 +356,7 @@ export default function MintTokens() {
                                     renderItem: ({ item }) => {
                                         const isSelected = selectedRecipients.has(item.wallet_address);
                                         const amount = recipientAmounts.get(item.wallet_address) || '';
+                                        const balanceInfo = walletBalances.get(item.wallet_address);
 
                                         return (
                                             <View style={styles.recipientCard}>
@@ -336,6 +384,31 @@ export default function MintTokens() {
                                                         </View>
                                                     </View>
                                                 </TouchableOpacity>
+
+                                                {/* Display current balance */}
+                                                <View style={styles.balanceContainer}>
+                                                    {balanceInfo?.loading ? (
+                                                        <View style={styles.balanceRow}>
+                                                            <ActivityIndicator size="small" color={theme.colors.text.secondary} />
+                                                            <Text style={styles.balanceLabel}>Loading balance...</Text>
+                                                        </View>
+                                                    ) : balanceInfo?.error ? (
+                                                        <Text style={styles.balanceError}>
+                                                            ⚠️ Could not fetch balance
+                                                        </Text>
+                                                    ) : (
+                                                        <View style={styles.balanceRow}>
+                                                            <Text style={styles.balanceLabel}>Current Balance:</Text>
+                                                            <Text style={styles.balanceValue}>
+                                                                {balanceInfo?.balance ?
+                                                                    (parseFloat(balanceInfo.balance) / Math.pow(10, 9)).toFixed(2)
+                                                                    : '0.00'
+                                                                } tokens
+                                                            </Text>
+                                                        </View>
+                                                    )}
+                                                </View>
+
                                                 {isSelected && (
                                                     <View style={styles.amountInputContainer}>
                                                         <Input
@@ -663,6 +736,33 @@ const styles = StyleSheet.create({
         fontWeight: theme.typography.fontWeight.medium,
         color: theme.colors.success.default,
         marginLeft: theme.spacing.sm,
+    },
+    balanceContainer: {
+        paddingHorizontal: theme.spacing.md,
+        paddingVertical: theme.spacing.sm,
+        backgroundColor: theme.colors.background.tertiary,
+        borderTopWidth: 1,
+        borderTopColor: theme.colors.border.default,
+    },
+    balanceRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: theme.spacing.sm,
+    },
+    balanceLabel: {
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.text.secondary,
+        fontWeight: theme.typography.fontWeight.medium,
+    },
+    balanceValue: {
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.primary.default,
+        fontWeight: theme.typography.fontWeight.semibold,
+    },
+    balanceError: {
+        fontSize: theme.typography.fontSize.xs,
+        color: theme.colors.error.default,
+        fontStyle: 'italic',
     },
 });
 
