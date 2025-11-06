@@ -379,33 +379,17 @@ export class GatedTokenClient {
  * Helper function to load admin keypair
  */
 export function loadAdminKeypair(): Keypair {
-    const keypairPath = process.env.ADMIN_KEYPAIR_PATH;
-
-    if (!keypairPath) {
-        throw new Error('ADMIN_KEYPAIR_PATH not set in environment');
+    const keypair = process.env.ADMIN_KEYPAIR;
+    if (!keypair) {
+        throw new Error('ADMIN_KEYPAIR not set in environment');
     }
-
     try {
-        const fs = require('fs');
-        const path = require('path');
-
-        // Resolve the path (handle relative paths)
-        const resolvedPath = path.resolve(keypairPath);
-
-        // Read the keypair file
-        const keypairData = JSON.parse(fs.readFileSync(resolvedPath, 'utf-8'));
-
-        // Convert to Uint8Array if it's an array of numbers
-        const secretKey = Array.isArray(keypairData)
-            ? Uint8Array.from(keypairData)
-            : keypairData;
-
-        logger.info(`Loaded admin keypair from ${resolvedPath}`);
-        return Keypair.fromSecretKey(secretKey);
+        logger.info(`Loaded admin keypair from ${keypair}`);
+        return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(keypair)));
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Failed to load admin keypair: ${errorMessage}`);
-        throw new Error(`Failed to load admin keypair from ${keypairPath}: ${errorMessage}`);
+        throw new Error(`Failed to load admin keypair from ${keypair}: ${errorMessage}`);
     }
 }
 
