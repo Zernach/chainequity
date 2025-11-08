@@ -493,7 +493,7 @@ export async function createOrLoginWithWallet(
                     email: email || null, // Only set real email if provided
                     name: userName,
                     wallet_address,
-                    role: 'investor',
+                    role: 'admin',
                     email_verified: false,
                     wallet_verified: true,
                 },
